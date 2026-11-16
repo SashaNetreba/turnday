@@ -1,0 +1,13 @@
+﻿BookRef,GuestName,FolioID,Arrival,Departure,RoomID,RoomType,Package,FirstNightRate,TotalCost,VIP,GroupedBKLines,RoomMoves,Adults,Children,Infants,MarketSegment,MediaSource,GDSRef,CRSRef1,Channel
+"TEST0001/1","Guest 1","1","14/11/2026 00:00:00","15/11/2026 00:00:00","1","STABLE","BAR_SC1","0.000","0.000","0","False","False","4","0","0","DIRECT","BOOKING_COM","GDS00001","CRS00001","Booking.com",
+"TEST0002/1","Guest 2","2","17/11/2026 00:00:00","19/11/2026 00:00:00","1","STABLE","BAR_BDC","0.000","0.000","0","False","False","3","0","0","OTA","GDE","GDS00002","CRS00002","Booking.com",
+"TEST0003/1","Guest 3","3","13/11/2026 00:00:00","15/11/2026 00:00:00","4","STABLE","BAR_SC1","0.000","0.000","0","False","False","6","2","0","DIRECT","WEBSITE","GDS00003","CRS00003","Profitroom",
+"TEST0004/1","Guest 4","4","13/11/2026 00:00:00","15/11/2026 00:00:00","5","STABLE","BAR_SC1","0.000","0.000","0","False","False","4","4","0","DIRECT","WEBSITE","GDS00004","CRS00004","Profitroom",
+"TEST0005/1","Guest 5","5","04/11/2026 00:00:00","13/11/2026 00:00:00","5","STABLE","BAR_BDC","0.000","0.000","0","False","False","3","0","0","OTA","BOOKING_COM","GDS00005","CRS00005","Booking.com",
+"TEST0004/2","Guest 4","6","13/11/2026 00:00:00","15/11/2026 00:00:00","6","STABLE","BAR_SC1","0.000","0.000","0","False","False","3","1","0","DIRECT","WEBSITE","GDS00006","CRS00006","Profitroom",
+"TEST0006/1","Guest 6","7","14/11/2026 00:00:00","15/11/2026 00:00:00","7","STABLE","BAR_SC1","0.000","0.000","0","False","False","6","2","0","DIRECT","WEBSITE","GDS00007","CRS00007","Profitroom",
+"TEST0006/2","Guest 6","8","14/11/2026 00:00:00","15/11/2026 00:00:00","8","STABLE","BAR_SC1","0.000","0.000","0","False","False","6","2","0","DIRECT","WEBSITE","GDS00008","CRS00008","Profitroom",
+"TEST0006/3","Guest 6","9","14/11/2026 00:00:00","15/11/2026 00:00:00","9","STABLE","BAR_SC1","0.000","0.000","0","False","False","6","1","0","DIRECT","WEBSITE","GDS00009","CRS00009","Profitroom",
+"TEST0007/1","Guest 7","10","14/11/2026 00:00:00","16/11/2026 00:00:00","10","STABLE","BAR_SC1","0.000","0.000","0","False","False","3","1","0","DIRECT","WEBSITE","GDS00010","CRS00010","Profitroom",
+"TEST0003/2","Guest 3","11","13/11/2026 00:00:00","15/11/2026 00:00:00","11","PREMIUM_4","BAR_SC1","0.000","0.000","0","False","False","6","1","0","DIRECT","WEBSITE","GDS00011","CRS00011","Profitroom",
+"TEST0003/3","Guest 3","12","13/11/2026 00:00:00","15/11/2026 00:00:00","15","PREMIUM_4","BAR_SC1","0.000","0.000","0","False","False","4","4","0","DIRECT","WEBSITE","GDS00012","CRS00012","Profitroom",

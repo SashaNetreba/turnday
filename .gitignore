@@ -1,0 +1,23 @@
+node_modules/
+dist/
+coverage/
+reports/
+playwright-report/
+test-results/
+.turbo/
+*.log
+.DS_Store
+
+# secrets
+.env
+.env.*
+!.env.example
+
+# real PMS exports contain guest data — never commit
+*guest-list-report*.csv
+*guest-list-report*.numbers
+private/
+
+# personal Claude Code settings
+.claude/settings.local.json
+CLAUDE.local.md
