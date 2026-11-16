@@ -114,7 +114,11 @@ TimeEntry
 ## 4. Business rules
 
 ### Cleaning demand
-- **R1.** A `CleaningTask` is created for every booking whose `departureDate` falls in the planning week.
+- **R1.** A `CleaningTask` is created for every booking whose `departureDate` falls in the planning week
+  and whose status is not `CANCELLED`.
+  - The **planning week** is 7 consecutive days starting on a given date (start and start + 6 inclusive); it is not tied to a weekday.
+  - A booking with `departureDate <= arrivalDate` is **invalid** and is skipped.
+  - Several bookings for the same cottage with the same `departureDate` produce **one** task.
 - **R2.** Empty cottages (no departure that day) are **not** cleaned. Occupied cottages (stayovers) are **not** cleaned either.
 - **R3.** Non-schedulable cottages never produce tasks, even if a booking exists.
 - **R4.** Estimated effort: `STABLE` ≈ 4–4.5 h, `PREMIUM` ≈ 5 h (configurable, not hard-coded).
@@ -181,6 +185,7 @@ For any randomly generated week of bookings and availability, the generated sche
 8. No task is planned after its deadline; a task that cannot meet it appears in the shortfall/at-risk report.
 9. A task is deferred only if its departure day was short-staffed and it had no same-day arrival.
 10. Re-importing the same CSV never removes manager overrides (time overrides, crew overrides).
+11. At most one `DEPARTURE` task per cottage per day.
 
 ---
 
