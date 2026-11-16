@@ -1,0 +1,11 @@
+dist
+coverage
+reports
+playwright-report
+test-results
+pnpm-lock.yaml
+# keep the RezLynx sample byte-exact (BOM, trailing commas)
+tests/fixtures
+# hand-written docs and Claude Code config are not auto-formatted
+*.md
+.claude

@@ -11,6 +11,15 @@ around a clean, test-first architecture.
 - Moves cleans to the next day when the team is short and nobody arrives that day.
 - Lets housekeepers start/stop work from their phone; managers see planned vs actual time.
 
+## Getting started
+
+Requires Node 22+ and pnpm (via `corepack enable`).
+
+```sh
+pnpm install
+pnpm verify   # lint + typecheck + architecture check + unit tests
+```
+
 ## Docs
 
 - [Domain model and business rules](docs/domain-model.md)
