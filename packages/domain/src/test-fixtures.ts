@@ -1,6 +1,6 @@
 // Test-only helpers. Excluded from the build (tsconfig.json) and from coverage (vitest.config.ts).
-import type { Booking, BookingStatus, Cottage } from './index.js';
-import { localDate } from './index.js';
+import type { Booking, BookingStatus, Cottage, SchedulingConfig } from './index.js';
+import { localDate, localTime } from './index.js';
 
 /** Seed reference data (docs/domain-model.md §3): 1–10 STABLE, 11/12/15 PREMIUM, 14 not schedulable, 13 missing. */
 export function seedCottages(): Cottage[] {
@@ -36,5 +36,14 @@ export function booking(
     arrivalDate: localDate(arrival),
     departureDate: localDate(departure),
     status,
+  };
+}
+
+/** Seed SchedulingConfig (docs/domain-model.md §3): the manager's planning values. */
+export function seedConfig(): SchedulingConfig {
+  return {
+    estimatedMinutes: { STABLE: 270, PREMIUM: 300 },
+    defaultCheckoutTime: localTime('10:00'),
+    defaultCheckinTime: localTime('16:00'),
   };
 }
