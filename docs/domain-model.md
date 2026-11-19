@@ -57,11 +57,11 @@ Booking
   checkinTime?: time          # overrides SchedulingConfig.defaultCheckinTime (16:00)
   status: CONFIRMED | CHECKED_OUT | CANCELLED
 
-TimeOverride                  # set by the manager in the app, survives CSV re-imports
-  bookingRef
+TimeOverride                  # R5a: set by the manager in the app, survives CSV re-imports
+  bookingRef                  # Booking.externalRef
   kind: LATE_CHECKOUT | EARLY_CHECKIN
   time: time
-  setBy, setAt
+  setBy, setAt                # storage metadata only — kept by the adapter, not passed into the domain
 
 Housekeeper
   id
@@ -86,6 +86,7 @@ CleaningTask                  # derived from bookings, never entered manually
   deadline?: datetime         # local wall-clock: next arrival into this cottage + check-in time (incl. early check-in);
                               # empty if no next arrival is known
   tight: boolean              # R5: deadline exists and (deadline − earliestStart − estimatedMinutes) ≤ 0
+  atRisk: boolean             # R5b: deadline exists and (deadline − earliestStart) < estimatedMinutes
 
 SchedulingConfig              # passed into the domain, never hard-coded there
   estimatedMinutes: { STABLE: int, PREMIUM: int }   # R4, planning values (upper bound)
@@ -141,8 +142,8 @@ TimeEntry
   - `deadline = next arrival date + (that booking's checkinTime ?? defaultCheckinTime)` (default 16:00). The **next arrival** is the
     earliest non-cancelled, valid booking for the same cottage with `arrivalDate >= departureDate`. If several arrive that day,
     the earliest check-in counts. No next arrival known → **no deadline**.
-  - **Precedence** for check-out and check-in times (highest first): manager override (R5a, `TimeOverride`, not
-    implemented yet) → booking `checkoutTime` / `checkinTime` → `SchedulingConfig` default.
+  - **Precedence** for check-out and check-in times (highest first): manager override (R5a, `TimeOverride`)
+    → booking `checkoutTime` / `checkinTime` → `SchedulingConfig` default.
   - When several bookings collapse into one task (R1), the **latest** checkout time counts.
   - A task is **tight** when it has a deadline and `deadline − earliestStart − estimatedMinutes ≤ 0`. A task without a deadline is never tight.
     ⚠ Premium with an 11:00 checkout and a same-day arrival has zero slack (11:00 + 300 min = 16:00) → tight.
@@ -151,7 +152,30 @@ TimeEntry
     cottage's next arrival**. With a too-short export a task **silently gets no deadline and is therefore never tight** —
     a known limitation of the input, not detected by the domain (see §8 backlog).
 - **R5a. Late checkout / early check-in.** The manager can set a late checkout or an early check-in on a booking in the app. These overrides change `earliestStart` / `deadline`, are stored separately from imported data, and survive CSV re-imports.
-- **R5b.** If an override makes a task impossible for one person (available window < estimated time), the schedule flags it as **at risk** and suggests a crew of 2. It is never silently dropped.
+  - Overrides are a **pure input** to the domain (`bookingRef`, `kind`, `time`); storing them, `setBy` / `setAt` and
+    surviving re-imports (invariant 10) are the adapter's job.
+  - A `LATE_CHECKOUT` replaces the checkout time of the booking that **departs**; an `EARLY_CHECKIN` replaces the check-in
+    time of the booking that **arrives**. Both may be set on the same booking — they act on different ends of the stay.
+  - The override **always wins** over the booking time and the default, even when it points the "wrong" way
+    (e.g. a `LATE_CHECKOUT` earlier than the booking's checkout).
+  - The effective time is resolved **per booking first** (`override ?? booking time ?? default`), then the R5 rules apply:
+    among collapsed departures (R1, invariant 11) the **latest** checkout counts, among same-day arrivals the **earliest**
+    check-in counts. So an override on any of the collapsed bookings counts, but an override earlier than another collapsed
+    booking's checkout does not pull `earliestStart` forward.
+  - An override whose booking is unknown, cancelled or invalid is **ignored** (such a booking neither departs nor arrives, R1).
+    A `LATE_CHECKOUT` on a booking that produces no task in the planning week is ignored. An `EARLY_CHECKIN` counts
+    whenever its booking is the next arrival for a task in the week, even if that booking departs outside the week.
+    The domain does not report ignored overrides (see §8 backlog).
+  - Storage keeps at most one override per `(bookingRef, kind)` — setting a new one replaces the old. If duplicates still
+    reach the domain, it resolves them conservatively and deterministically: the **latest** `LATE_CHECKOUT` and the
+    **earliest** `EARLY_CHECKIN` win. The order of the overrides never changes the result.
+- **R5b. At risk.** A task is **at risk** when it has a deadline and its window is shorter than the estimate:
+  `deadline − earliestStart < estimatedMinutes` — one person cannot finish it in time. This holds whatever shortened the
+  window (override, booking time or default). A task without a deadline is never at risk.
+  - Zero slack (window = estimate) is **tight** but not at risk. Every at-risk task is also tight.
+  - A **negative window** (e.g. late checkout 15:00 and the next guest's early check-in 12:00 the same day) keeps the task
+    with its true times; it is at risk and tight. An at-risk task is **never silently dropped**.
+  - Suggesting a crew of 2 for an at-risk task belongs to the crew rules (R6/R7a), which read `atRisk`.
 
 ### Deferral
 - **R5c.** A task may be **deferred** to a later day only when **both** are true:
@@ -213,7 +237,10 @@ For any randomly generated week of bookings and availability, the generated sche
 10. Re-importing the same CSV never removes manager overrides (time overrides, crew overrides).
 11. At most one `DEPARTURE` task per cottage per day.
 12. Every task's `earliestStart` falls on its `departureDate`.
-13. A task without a deadline is never tight. With default check-in/out times, `deadline >= earliestStart` whenever a deadline exists.
+13. A task without a deadline is never tight. With default check-in/out times and no overrides, `deadline >= earliestStart`
+    whenever a deadline exists. (Overrides or booking times may produce a negative window — see invariant 14.)
+14. A task is at risk ⇔ it has a deadline and `deadline − earliestStart < estimatedMinutes`. A task without a deadline is
+    never at risk; every at-risk task is tight; a task with a negative window is at risk.
 
 ---
 
@@ -272,3 +299,8 @@ Rules for the importer:
 Backlog:
 
 - [ ] Importer must **warn** when the export's date range ends before planning-week end + 7 days (R5 input coverage).
+- [ ] Adapter/API **reports orphan overrides** (R5a): an override whose booking is unknown, cancelled or produces no task
+      — e.g. after a re-import changed or removed the booking — is shown to the manager instead of being ignored silently.
+- [ ] API **warns** when a `LATE_CHECKOUT` is earlier than the booking/default checkout, or an `EARLY_CHECKIN` is later
+      than the booking/default check-in (R5a — likely a typo).
+- [ ] API **warns** when saving an override that gives a task a negative window (R5b).
