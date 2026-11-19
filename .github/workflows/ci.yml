@@ -23,3 +23,5 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify
+      # docs/traceability.md is generated: fail if the committed copy is stale.
+      - run: pnpm test:matrix && git diff --exit-code docs/traceability.md
