@@ -1,8 +1,9 @@
 import type { LocalDate } from './local-date.js';
+import type { LocalDateTime } from './local-date-time.js';
 
 /**
  * Derived from bookings, never entered manually.
- * Effort, crew size and time window are added with R4–R6.
+ * Crew size is added with R6.
  */
 export interface CleaningTask {
   readonly bookingRef: string;
@@ -11,4 +12,12 @@ export interface CleaningTask {
   readonly departureDate: LocalDate;
   readonly plannedDate: LocalDate;
   readonly deferred: boolean;
+  /** R4: from SchedulingConfig by cottage type. */
+  readonly estimatedMinutes: number;
+  /** R5: departure date + checkout time. */
+  readonly earliestStart: LocalDateTime;
+  /** R5: next arrival into this cottage + check-in time; absent when no next arrival is known. */
+  readonly deadline?: LocalDateTime;
+  /** R5: a deadline exists and deadline − earliestStart − estimatedMinutes ≤ 0. */
+  readonly tight: boolean;
 }

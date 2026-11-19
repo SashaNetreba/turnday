@@ -1,48 +1,13 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import type { Booking, BookingStatus, CleaningTask, Cottage, PlanningWeek } from './index.js';
+import type { Booking, BookingStatus, CleaningTask, PlanningWeek } from './index.js';
 import { addDays, contains, daysOf, deriveCleaningTasks, localDate } from './index.js';
-
-/** Seed reference data (docs/domain-model.md §3): 1–10 STABLE, 11/12/15 PREMIUM, 14 not schedulable, 13 missing. */
-function seedCottages(): Cottage[] {
-  const stable = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((number): Cottage => ({
-    number,
-    type: 'STABLE',
-    schedulable: true,
-  }));
-  const premium = [11, 12, 15].map((number): Cottage => ({
-    number,
-    type: 'PREMIUM',
-    schedulable: true,
-  }));
-  const staff: Cottage = {
-    number: 14,
-    type: 'STABLE',
-    schedulable: false,
-    note: 'staff accommodation',
-  };
-  return [...stable, ...premium, staff];
-}
-
-function booking(
-  externalRef: string,
-  cottageNumber: number,
-  arrival: string,
-  departure: string,
-  status: BookingStatus = 'CONFIRMED',
-): Booking {
-  return {
-    externalRef,
-    cottageNumber,
-    arrivalDate: localDate(arrival),
-    departureDate: localDate(departure),
-    status,
-  };
-}
+import { booking, seedConfig, seedCottages } from './test-fixtures.js';
 
 const week: PlanningWeek = { start: localDate('2026-11-16') }; // Mon 16 – Sun 22 Nov 2026
 const cottages = seedCottages();
+const config = seedConfig();
 
 const cottagesByDay = (tasks: CleaningTask[]): Record<string, number[]> => {
   const byDay: Record<string, number[]> = {};
@@ -59,6 +24,7 @@ describe('deriveCleaningTasks — examples', () => {
       ],
       cottages,
       week,
+      config,
     );
 
     expect(tasks).toEqual([
@@ -69,6 +35,9 @@ describe('deriveCleaningTasks — examples', () => {
         departureDate: '2026-11-17',
         plannedDate: '2026-11-17',
         deferred: false,
+        estimatedMinutes: 270,
+        earliestStart: '2026-11-17T10:00',
+        tight: false,
       },
       {
         bookingRef: 'B/1',
@@ -77,6 +46,9 @@ describe('deriveCleaningTasks — examples', () => {
         departureDate: '2026-11-20',
         plannedDate: '2026-11-20',
         deferred: false,
+        estimatedMinutes: 300,
+        earliestStart: '2026-11-20T10:00',
+        tight: false,
       },
     ]);
   });
@@ -91,6 +63,7 @@ describe('deriveCleaningTasks — examples', () => {
       ],
       cottages,
       week,
+      config,
     );
 
     expect(tasks.map((t) => t.bookingRef)).toEqual(['first', 'last']);
@@ -104,6 +77,7 @@ describe('deriveCleaningTasks — examples', () => {
       ],
       cottages,
       week,
+      config,
     );
 
     expect(tasks.map((t) => t.bookingRef)).toEqual(['checked-out']);
@@ -118,6 +92,7 @@ describe('deriveCleaningTasks — examples', () => {
       ],
       cottages,
       week,
+      config,
     );
 
     expect(tasks.map((t) => t.bookingRef)).toEqual(['valid']);
@@ -132,6 +107,7 @@ describe('deriveCleaningTasks — examples', () => {
       ],
       cottages,
       week,
+      config,
     );
 
     expect(tasks.map((t) => [t.cottageNumber, t.plannedDate, t.bookingRef])).toEqual([
@@ -145,6 +121,7 @@ describe('deriveCleaningTasks — examples', () => {
       [booking('long-stay', 1, '2026-11-14', '2026-11-25')],
       cottages,
       week,
+      config,
     );
 
     expect(tasks).toEqual([]);
@@ -155,6 +132,7 @@ describe('deriveCleaningTasks — examples', () => {
       [booking('only-cottage-2', 2, '2026-11-14', '2026-11-18')],
       cottages,
       week,
+      config,
     );
 
     expect(tasks.map((t) => t.cottageNumber)).toEqual([2]);
@@ -165,6 +143,7 @@ describe('deriveCleaningTasks — examples', () => {
       [booking('staff', 14, '2026-11-14', '2026-11-18')],
       cottages,
       week,
+      config,
     );
 
     expect(tasks).toEqual([]);
@@ -175,6 +154,7 @@ describe('deriveCleaningTasks — examples', () => {
       [booking('ghost', 13, '2026-11-14', '2026-11-18')],
       cottages,
       week,
+      config,
     );
 
     expect(tasks).toEqual([]);
@@ -198,7 +178,7 @@ describe('deriveCleaningTasks — examples', () => {
       booking('TEST0003/3', 15, '2026-11-13', '2026-11-15'),
     ];
 
-    const tasks = deriveCleaningTasks(sample, cottages, { start: localDate('2026-11-13') });
+    const tasks = deriveCleaningTasks(sample, cottages, { start: localDate('2026-11-13') }, config);
 
     expect(cottagesByDay(tasks)).toEqual({
       '2026-11-13': [5], // Fri
@@ -246,7 +226,7 @@ describe('deriveCleaningTasks — properties', () => {
     const schedulable = new Set(cottages.filter((c) => c.schedulable).map((c) => c.number));
     fc.assert(
       fc.property(fc.array(bookingArb, { maxLength: 40 }), weekArb, (bookings, w) => {
-        for (const t of deriveCleaningTasks(bookings, cottages, w)) {
+        for (const t of deriveCleaningTasks(bookings, cottages, w, config)) {
           expect(schedulable.has(t.cottageNumber)).toBe(true);
         }
       }),
@@ -257,7 +237,7 @@ describe('deriveCleaningTasks — properties', () => {
     fc.assert(
       fc.property(fc.array(bookingArb, { maxLength: 40 }), weekArb, (bookings, w) => {
         const days = new Set<string>(daysOf(w));
-        for (const t of deriveCleaningTasks(bookings, cottages, w)) {
+        for (const t of deriveCleaningTasks(bookings, cottages, w, config)) {
           expect(contains(w, t.departureDate)).toBe(true);
           expect(days.has(t.plannedDate)).toBe(true);
           const source = bookings.find((b) => b.externalRef === t.bookingRef);
@@ -276,10 +256,10 @@ describe('deriveCleaningTasks — properties', () => {
         ),
         weekArb,
         ([bookings, shuffled], w) => {
-          const tasks = deriveCleaningTasks(bookings, cottages, w);
+          const tasks = deriveCleaningTasks(bookings, cottages, w, config);
           const keys = tasks.map((t) => `${String(t.cottageNumber)}@${t.plannedDate}`);
           expect(new Set(keys).size).toBe(keys.length);
-          expect(deriveCleaningTasks(shuffled, cottages, w)).toEqual(tasks);
+          expect(deriveCleaningTasks(shuffled, cottages, w, config)).toEqual(tasks);
         },
       ),
     );

@@ -35,6 +35,7 @@ Hard rules:
 - Significant technical decisions get an ADR in `docs/adr/` (use the `/adr` skill).
 - Prefer plain functions and small types over classes in the domain.
 - No `any`. `strict: true` in every tsconfig.
+- Run repo tools with `pnpm exec <tool>` (or a `pnpm` script), never `npx`.
 
 ## Privacy — non-negotiable
 

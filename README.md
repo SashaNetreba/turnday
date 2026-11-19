@@ -26,3 +26,4 @@ pnpm verify   # lint + typecheck + architecture check + unit tests
 - Architecture decisions:
   - [0001 — Hexagonal architecture with a pure domain package](docs/adr/0001-hexagonal-architecture.md)
   - [0002 — TypeScript end to end, Vitest + Playwright](docs/adr/0002-typescript-and-test-stack.md)
+  - [0003 — Wall-clock local time in the domain](docs/adr/0003-wall-clock-time-in-domain.md)
