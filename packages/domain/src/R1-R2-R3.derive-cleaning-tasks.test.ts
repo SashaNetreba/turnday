@@ -1,45 +1,9 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import type { Booking, BookingStatus, CleaningTask, Cottage, PlanningWeek } from './index.js';
+import type { Booking, BookingStatus, CleaningTask, PlanningWeek } from './index.js';
 import { addDays, contains, daysOf, deriveCleaningTasks, localDate } from './index.js';
-
-/** Seed reference data (docs/domain-model.md §3): 1–10 STABLE, 11/12/15 PREMIUM, 14 not schedulable, 13 missing. */
-function seedCottages(): Cottage[] {
-  const stable = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((number): Cottage => ({
-    number,
-    type: 'STABLE',
-    schedulable: true,
-  }));
-  const premium = [11, 12, 15].map((number): Cottage => ({
-    number,
-    type: 'PREMIUM',
-    schedulable: true,
-  }));
-  const staff: Cottage = {
-    number: 14,
-    type: 'STABLE',
-    schedulable: false,
-    note: 'staff accommodation',
-  };
-  return [...stable, ...premium, staff];
-}
-
-function booking(
-  externalRef: string,
-  cottageNumber: number,
-  arrival: string,
-  departure: string,
-  status: BookingStatus = 'CONFIRMED',
-): Booking {
-  return {
-    externalRef,
-    cottageNumber,
-    arrivalDate: localDate(arrival),
-    departureDate: localDate(departure),
-    status,
-  };
-}
+import { booking, seedCottages } from './test-fixtures.js';
 
 const week: PlanningWeek = { start: localDate('2026-11-16') }; // Mon 16 – Sun 22 Nov 2026
 const cottages = seedCottages();

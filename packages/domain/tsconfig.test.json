@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "node_modules/.cache/tsc-test",
+    "tsBuildInfoFile": "node_modules/.cache/tsc-test/.tsbuildinfo",
+    "lib": ["ES2022"],
+    "types": []
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.json" }]
+}
