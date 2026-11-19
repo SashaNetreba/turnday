@@ -20,4 +20,6 @@ export interface CleaningTask {
   readonly deadline?: LocalDateTime;
   /** R5: a deadline exists and deadline − earliestStart − estimatedMinutes ≤ 0. */
   readonly tight: boolean;
+  /** R5b: a deadline exists and deadline − earliestStart < estimatedMinutes — one person cannot finish in time. */
+  readonly atRisk: boolean;
 }

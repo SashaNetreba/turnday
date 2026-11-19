@@ -9,9 +9,9 @@ export interface Booking {
   readonly cottageNumber: number;
   readonly arrivalDate: LocalDate;
   readonly departureDate: LocalDate;
-  /** R5: overrides SchedulingConfig.defaultCheckoutTime. A manager override (R5a) will take precedence. */
+  /** R5: overrides SchedulingConfig.defaultCheckoutTime. A manager LATE_CHECKOUT (R5a) takes precedence. */
   readonly checkoutTime?: LocalTime;
-  /** R5: overrides SchedulingConfig.defaultCheckinTime. A manager override (R5a) will take precedence. */
+  /** R5: overrides SchedulingConfig.defaultCheckinTime. A manager EARLY_CHECKIN (R5a) takes precedence. */
   readonly checkinTime?: LocalTime;
   readonly status: BookingStatus;
 }

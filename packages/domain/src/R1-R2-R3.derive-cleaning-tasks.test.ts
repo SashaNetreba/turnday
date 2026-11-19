@@ -38,6 +38,7 @@ describe('deriveCleaningTasks — examples', () => {
         estimatedMinutes: 270,
         earliestStart: '2026-11-17T10:00',
         tight: false,
+        atRisk: false,
       },
       {
         bookingRef: 'B/1',
@@ -49,6 +50,7 @@ describe('deriveCleaningTasks — examples', () => {
         estimatedMinutes: 300,
         earliestStart: '2026-11-20T10:00',
         tight: false,
+        atRisk: false,
       },
     ]);
   });
