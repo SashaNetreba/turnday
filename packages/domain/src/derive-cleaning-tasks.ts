@@ -15,7 +15,7 @@ interface EffectiveTimes {
 }
 
 /**
- * Cleaning demand for one planning week, with effort and time window — R1–R5a, invariants 11–13.
+ * Cleaning demand for one planning week, with effort and time window — R1–R5b, invariants 11–14.
  * Only departures produce tasks, so stayovers and empty cottages never do (R2).
  * `bookings` must also cover the days after the week up to each cottage's next arrival (R5 input coverage);
  * otherwise a task has no deadline.
@@ -55,6 +55,8 @@ export function deriveCleaningTasks(
       const checkout = latest(group.map(times.checkoutOf));
       const earliestStart = atTime(first.departureDate, checkout);
       const deadline = nextArrivalDeadline(valid, first.cottageNumber, first.departureDate, times);
+      // Minutes available to clean; negative when an override or booking time crosses the deadline.
+      const window = deadline === undefined ? undefined : minutesBetween(earliestStart, deadline);
 
       return {
         bookingRef: first.externalRef,
@@ -66,8 +68,8 @@ export function deriveCleaningTasks(
         estimatedMinutes,
         earliestStart,
         ...(deadline === undefined ? {} : { deadline }),
-        tight:
-          deadline !== undefined && minutesBetween(earliestStart, deadline) - estimatedMinutes <= 0,
+        tight: window !== undefined && window - estimatedMinutes <= 0, // R5
+        atRisk: window !== undefined && window < estimatedMinutes, // R5b
       };
     })
     .sort((a, b) =>
