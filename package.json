@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "pnpm@12.21.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22.18"
   },
   "scripts": {
     "lint": "eslint . && prettier --check .",
@@ -12,6 +12,7 @@
     "typecheck": "tsc -b",
     "arch": "depcruise packages apps --config .dependency-cruiser.cjs",
     "test": "pnpm -r --if-present test",
+    "test:matrix": "pnpm --filter @turnday/domain exec vitest run --reporter=default --reporter=json --outputFile=../../reports/vitest-domain.json && node tools/traceability/src/cli.ts reports/vitest-domain.json",
     "verify": "pnpm lint && pnpm typecheck && pnpm arch && pnpm test"
   },
   "devDependencies": {

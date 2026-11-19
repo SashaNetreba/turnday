@@ -23,7 +23,25 @@ pnpm verify   # lint + typecheck + architecture check + unit tests
 ## Docs
 
 - [Domain model and business rules](docs/domain-model.md)
+- [Test strategy](docs/test-strategy.md) and the generated [traceability matrix](docs/traceability.md) (rule → tests)
 - Architecture decisions:
   - [0001 — Hexagonal architecture with a pure domain package](docs/adr/0001-hexagonal-architecture.md)
   - [0002 — TypeScript end to end, Vitest + Playwright](docs/adr/0002-typescript-and-test-stack.md)
   - [0003 — Wall-clock local time in the domain](docs/adr/0003-wall-clock-time-in-domain.md)
+
+## How this was built
+
+Turnday is built with [Claude Code](https://claude.com/claude-code). I own the requirements, the domain rules, the
+architecture decisions, the test design and the review; Claude Code writes most of the code and tests under those rules, and I review every change.
+
+Every change goes the same way: **plan → doc → red → green → `pnpm verify` → commit approved by me**.
+The plan is agreed first, the rule is written into the domain model with its ID, a failing test is shown before the code,
+`pnpm verify` must exit 0, and nothing is committed without my explicit yes.
+
+The working agreement lives in the repo:
+
+- [CLAUDE.md](CLAUDE.md) — architecture boundaries, commands, privacy rules and how we work.
+- [.claude/skills](.claude/skills) — repeatable workflows: adding a domain rule, running the quality gate, writing an ADR.
+- [.claude/settings.json](.claude/settings.json) — what Claude Code may run without asking, what needs approval
+  (e.g. `git commit`), and what is denied (e.g. `git push`, reading real guest exports or `.env`).
+- [docs/test-strategy.md](docs/test-strategy.md) — test levels, principles and the test naming convention.

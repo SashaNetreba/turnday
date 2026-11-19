@@ -37,6 +37,16 @@ Hard rules:
 - No `any`. `strict: true` in every tsconfig.
 - Run repo tools with `pnpm exec <tool>` (or a `pnpm` script), never `npx`.
 
+## Before every commit
+
+- Show the red run (the new test failing for the right reason) and the green run.
+- Report every deviation from the approved plan before asking to commit — even when it is an improvement.
+- Show `git status --short`, and name the files explicitly in `git add` (no `git add .` / `-A`).
+- If an existing test's expected value changes, justify the new value from the rule (inputs, window, estimate),
+  not from what the code returned.
+- Don't claim a guarantee ("can't drift", "always", "never") unless a check enforces it — name that check.
+- Wait for the user's explicit "yes" before `git commit`.
+
 ## Privacy — non-negotiable
 
 - Real RezLynx exports contain guest names. They never enter the repo. Only `tests/fixtures/*.sample.csv` (anonymised) is committed.

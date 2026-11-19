@@ -1,0 +1,14 @@
+{
+  "name": "@turnday/traceability",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Generates docs/traceability.md (rule/invariant → tests) from docs/domain-model.md and Vitest JSON reports.",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "vitest": "^5.1.0"
+  }
+}
