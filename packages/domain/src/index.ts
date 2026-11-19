@@ -14,3 +14,4 @@ export {
   type PlanningWeek,
 } from './planning-week.js';
 export type { SchedulingConfig } from './scheduling-config.js';
+export type { TimeOverride, TimeOverrideKind } from './time-override.js';
