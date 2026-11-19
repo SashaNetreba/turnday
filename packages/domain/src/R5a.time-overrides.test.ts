@@ -1,9 +1,16 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import type { Booking, CleaningTask, LocalTime, TimeOverride } from './index.js';
-import { addDays, deriveCleaningTasks, localDate, localTime } from './index.js';
-import { booking, seedConfig, seedCottages } from './test-fixtures.js';
+import type { Booking, CleaningTask, TimeOverride } from './index.js';
+import { deriveCleaningTasks, localDate, localTime } from './index.js';
+import {
+  booking,
+  bookingArb,
+  seedConfig,
+  seedCottages,
+  timeArb,
+  weekArb,
+} from './test-fixtures.js';
 
 const cottages = seedCottages();
 const config = seedConfig();
@@ -245,45 +252,8 @@ describe('R5a — duplicate overrides for one booking', () => {
 });
 
 describe('R5a — properties', () => {
-  const base = localDate('2026-11-16');
-  const timeArb = fc
-    .tuple(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 }))
-    .map(([h, m]): LocalTime =>
-      localTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`),
-    );
-
-  const bookingArb: fc.Arbitrary<Booking> = fc
-    .record({
-      ref: fc.stringMatching(/^[A-Z]{2}\d{1,2}\/\d$/),
-      cottageNumber: fc.integer({ min: 0, max: 16 }),
-      arrivalOffset: fc.integer({ min: -10, max: 14 }),
-      nights: fc.integer({ min: -2, max: 10 }),
-      cancelled: fc.boolean(),
-      checkoutTime: fc.option(timeArb, { nil: undefined }),
-      checkinTime: fc.option(timeArb, { nil: undefined }),
-    })
-    .map(
-      ({
-        ref,
-        cottageNumber,
-        arrivalOffset,
-        nights,
-        cancelled,
-        checkoutTime,
-        checkinTime,
-      }): Booking => ({
-        externalRef: ref,
-        cottageNumber,
-        arrivalDate: addDays(base, arrivalOffset),
-        departureDate: addDays(base, arrivalOffset + nights),
-        status: cancelled ? 'CANCELLED' : 'CONFIRMED',
-        ...(checkoutTime ? { checkoutTime } : {}),
-        ...(checkinTime ? { checkinTime } : {}),
-      }),
-    );
-
   /** Bookings plus overrides that mostly point at them (some at unknown refs, duplicates allowed). */
-  const inputArb = fc.array(bookingArb, { maxLength: 30 }).chain((bookings) =>
+  const inputArb = fc.array(bookingArb(), { maxLength: 30 }).chain((bookings) =>
     fc.tuple(
       fc.constant(bookings),
       fc.array(
@@ -301,10 +271,6 @@ describe('R5a — properties', () => {
       ),
     ),
   );
-
-  const weekArb = fc
-    .integer({ min: -3, max: 3 })
-    .map((offset) => ({ start: addDays(base, offset) }));
 
   it('R5a: the order of the overrides never changes the result (full permutation)', () => {
     fc.assert(
@@ -331,7 +297,7 @@ describe('R5a — properties', () => {
 
   it('R5a: a LATE_CHECKOUT on a single departing booking sets earliestStart to the override time', () => {
     fc.assert(
-      fc.property(bookingArb, timeArb, weekArb, (b, time, w) => {
+      fc.property(bookingArb(), timeArb, weekArb, (b, time, w) => {
         const tasks = deriveCleaningTasks([b], cottages, w, config, [
           { bookingRef: b.externalRef, kind: 'LATE_CHECKOUT', time },
         ]);

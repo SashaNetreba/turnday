@@ -1,9 +1,9 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import type { Booking, BookingStatus, CleaningTask, LocalTime, SchedulingConfig } from './index.js';
-import { addDays, deriveCleaningTasks, localDate, localTime } from './index.js';
-import { booking, seedConfig, seedCottages } from './test-fixtures.js';
+import type { Booking, CleaningTask, SchedulingConfig } from './index.js';
+import { deriveCleaningTasks, localDate, localTime } from './index.js';
+import { booking, bookingArb, seedConfig, seedCottages, weekArb } from './test-fixtures.js';
 
 const cottages = seedCottages();
 const config = seedConfig();
@@ -210,52 +210,10 @@ describe('R5 — time window and tight flag', () => {
 });
 
 describe('R4 / R5 — properties', () => {
-  const base = localDate('2026-11-16');
-  const timeArb = fc
-    .tuple(fc.integer({ min: 0, max: 23 }), fc.integer({ min: 0, max: 59 }))
-    .map(([h, m]): LocalTime =>
-      localTime(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`),
-    );
-  const statusArb = fc.constantFrom<BookingStatus>('CONFIRMED', 'CHECKED_OUT', 'CANCELLED');
-
-  const bookingArb = (withTimes: boolean): fc.Arbitrary<Booking> =>
-    fc
-      .record({
-        ref: fc.stringMatching(/^[A-Z]{2}\d{1,3}\/\d$/),
-        cottageNumber: fc.integer({ min: 0, max: 16 }),
-        arrivalOffset: fc.integer({ min: -10, max: 14 }),
-        nights: fc.integer({ min: -2, max: 10 }),
-        status: statusArb,
-        checkoutTime: withTimes ? fc.option(timeArb, { nil: undefined }) : fc.constant(undefined),
-        checkinTime: withTimes ? fc.option(timeArb, { nil: undefined }) : fc.constant(undefined),
-      })
-      .map(
-        ({
-          ref,
-          cottageNumber,
-          arrivalOffset,
-          nights,
-          status,
-          checkoutTime,
-          checkinTime,
-        }): Booking => ({
-          externalRef: ref,
-          cottageNumber,
-          arrivalDate: addDays(base, arrivalOffset),
-          departureDate: addDays(base, arrivalOffset + nights),
-          status,
-          ...(checkoutTime ? { checkoutTime } : {}),
-          ...(checkinTime ? { checkinTime } : {}),
-        }),
-      );
-
   const configArb: fc.Arbitrary<SchedulingConfig> = fc
     .record({ STABLE: fc.integer({ min: 1, max: 600 }), PREMIUM: fc.integer({ min: 1, max: 600 }) })
     .map((estimatedMinutes) => ({ ...config, estimatedMinutes }));
 
-  const weekArb = fc
-    .integer({ min: -3, max: 3 })
-    .map((offset) => ({ start: addDays(base, offset) }));
   const typeOf = new Map(cottages.map((c) => [c.number, c.type]));
 
   it('R4: estimatedMinutes always equals the config value for the cottage type', () => {
