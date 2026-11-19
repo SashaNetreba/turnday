@@ -11,7 +11,8 @@ Follow these steps in order. Do not skip ahead to implementation.
 2. **Update the doc first**: the rule text, any entity field it needs, and an invariant in §6 if the rule must hold for every schedule. Show the user the diff of the doc and wait for a yes.
 3. **Write failing tests** in `packages/domain`:
    - an example-based test named `R<id>: <behaviour in plain words>`,
-   - if you added an invariant, a property-based test (fast-check) for it.
+   - if you added an invariant, a property-based test (fast-check) for it, named `invariant <n> / R<id>: <property>`
+     (naming convention: `docs/test-strategy.md`).
    Run them and confirm they fail for the right reason.
 4. **Implement** the smallest change in `packages/domain` that makes them pass. No I/O, no framework imports, no `Date.now()`.
 5. Run the `verify` skill.
