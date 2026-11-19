@@ -53,8 +53,8 @@ Booking
   cottageNumber: int
   arrivalDate: date
   departureDate: date
-  checkoutTime: time          # standard 10:00 or 11:00
-  checkinTime: time           # standard 16:00
+  checkoutTime?: time         # overrides SchedulingConfig.defaultCheckoutTime (10:00), e.g. 11:00
+  checkinTime?: time          # overrides SchedulingConfig.defaultCheckinTime (16:00)
   status: CONFIRMED | CHECKED_OUT | CANCELLED
 
 TimeOverride                  # set by the manager in the app, survives CSV re-imports
@@ -82,9 +82,15 @@ CleaningTask                  # derived from bookings, never entered manually
   deferred: boolean
   estimatedMinutes: int
   requiredCrewSize: 1 | 2
-  earliestStart: datetime     # departure date + checkout time (incl. late checkout)
-  deadline?: datetime         # next arrival into this cottage + check-in time (incl. early check-in);
+  earliestStart: datetime     # local wall-clock YYYY-MM-DDTHH:MM: departure date + checkout time (incl. late checkout)
+  deadline?: datetime         # local wall-clock: next arrival into this cottage + check-in time (incl. early check-in);
                               # empty if no next arrival is known
+  tight: boolean              # R5: deadline exists and (deadline − earliestStart − estimatedMinutes) ≤ 0
+
+SchedulingConfig              # passed into the domain, never hard-coded there
+  estimatedMinutes: { STABLE: int, PREMIUM: int }   # R4, planning values (upper bound)
+  defaultCheckoutTime: time   # R5
+  defaultCheckinTime: time    # R5
 
 Assignment
   taskId
@@ -109,6 +115,13 @@ TimeEntry
 
 \* type of cottage 14 to be confirmed; irrelevant while it is not schedulable.
 
+| SchedulingConfig (seed) | Value |
+|---|---|
+| `estimatedMinutes.STABLE` | 270 (4.5 h — upper bound of 4–4.5 h) |
+| `estimatedMinutes.PREMIUM` | 300 (5 h) |
+| `defaultCheckoutTime` | 10:00 |
+| `defaultCheckinTime` | 16:00 |
+
 ---
 
 ## 4. Business rules
@@ -121,9 +134,22 @@ TimeEntry
   - Several bookings for the same cottage with the same `departureDate` produce **one** task.
 - **R2.** Empty cottages (no departure that day) are **not** cleaned. Occupied cottages (stayovers) are **not** cleaned either.
 - **R3.** Non-schedulable cottages never produce tasks, even if a booking exists.
-- **R4.** Estimated effort: `STABLE` ≈ 4–4.5 h, `PREMIUM` ≈ 5 h (configurable, not hard-coded).
-- **R5.** A task cannot start before the guest's checkout time (10:00 or 11:00) and must be finished before the **next** guest's check-in (standard 16:00).
-  ⚠ Premium with an 11:00 checkout and a same-day arrival has zero slack (11:00 + 5 h = 16:00) — the schedule flags such tasks as **tight**.
+- **R4.** Estimated effort: `STABLE` ≈ 4–4.5 h, `PREMIUM` ≈ 5 h. Planning uses the upper bound — every task gets
+  `estimatedMinutes` from `SchedulingConfig.estimatedMinutes` by cottage type (seed: 270 / 300). Configurable, never hard-coded.
+- **R5.** A task cannot start before the guest's checkout time and must be finished before the **next** guest's check-in.
+  - `earliestStart = departureDate + (booking.checkoutTime ?? defaultCheckoutTime)` (default 10:00; 11:00 or other times per booking).
+  - `deadline = next arrival date + (that booking's checkinTime ?? defaultCheckinTime)` (default 16:00). The **next arrival** is the
+    earliest non-cancelled, valid booking for the same cottage with `arrivalDate >= departureDate`. If several arrive that day,
+    the earliest check-in counts. No next arrival known → **no deadline**.
+  - **Precedence** for check-out and check-in times (highest first): manager override (R5a, `TimeOverride`, not
+    implemented yet) → booking `checkoutTime` / `checkinTime` → `SchedulingConfig` default.
+  - When several bookings collapse into one task (R1), the **latest** checkout time counts.
+  - A task is **tight** when it has a deadline and `deadline − earliestStart − estimatedMinutes ≤ 0`. A task without a deadline is never tight.
+    ⚠ Premium with an 11:00 checkout and a same-day arrival has zero slack (11:00 + 300 min = 16:00) → tight.
+  - Times in the domain are **local wall-clock** (date + `HH:MM`), with no time zones; adapters convert to/from UTC (R15).
+  - **Input coverage:** the bookings passed in must cover at least the planning week **plus the following days up to each
+    cottage's next arrival**. With a too-short export a task **silently gets no deadline and is therefore never tight** —
+    a known limitation of the input, not detected by the domain (see §8 backlog).
 - **R5a. Late checkout / early check-in.** The manager can set a late checkout or an early check-in on a booking in the app. These overrides change `earliestStart` / `deadline`, are stored separately from imported data, and survive CSV re-imports.
 - **R5b.** If an override makes a task impossible for one person (available window < estimated time), the schedule flags it as **at risk** and suggests a crew of 2. It is never silently dropped.
 
@@ -186,6 +212,8 @@ For any randomly generated week of bookings and availability, the generated sche
 9. A task is deferred only if its departure day was short-staffed and it had no same-day arrival.
 10. Re-importing the same CSV never removes manager overrides (time overrides, crew overrides).
 11. At most one `DEPARTURE` task per cottage per day.
+12. Every task's `earliestStart` falls on its `departureDate`.
+13. A task without a deadline is never tight. With default check-in/out times, `deadline >= earliestStart` whenever a deadline exists.
 
 ---
 
@@ -238,3 +266,9 @@ Rules for the importer:
 - A mismatch between `RoomType` and the cottage's configured type is reported as a warning.
 - Re-importing an overlapping date range updates bookings by `BookRef` and never touches manager overrides.
 - The report has no status column: a booking missing from a newer import of the same range is treated as cancelled. *(to confirm)*
+- **Export range (R5):** the export must cover at least the planning week plus the following days up to the next arrivals.
+  If it ends too early, tasks silently get no deadline and are never flagged tight.
+
+Backlog:
+
+- [ ] Importer must **warn** when the export's date range ends before planning-week end + 7 days (R5 input coverage).
