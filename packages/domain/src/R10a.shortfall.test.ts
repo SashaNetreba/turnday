@@ -126,7 +126,7 @@ describe('R10a — staff needed vs available, shortfall', () => {
 });
 
 describe('R10a — properties', () => {
-  it('invariant 1 / R10a: every task is staffed or in shortfall, exactly once, and no day exceeds its headcount', () => {
+  it('invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount', () => {
     fc.assert(
       fc.property(
         fc.array(bookingArb(), { maxLength: 40 }),
@@ -135,7 +135,9 @@ describe('R10a — properties', () => {
           const tasks = deriveCleaningTasks(bookings, cottages, w, config);
           const p = planWeek({ tasks, headcount, week: w, config });
 
-          const placed = [...p.tasks, ...p.shortfall.map((s) => s.task)].map(key).sort();
+          const placed = [...p.tasks, ...p.shortfall.map((s) => s.task), ...p.carriedOver]
+            .map(key)
+            .sort();
           expect(placed).toEqual(tasks.map(key).sort());
 
           for (const { date, available } of headcount) {

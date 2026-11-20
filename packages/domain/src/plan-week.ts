@@ -1,7 +1,13 @@
 import type { CleaningTask } from './cleaning-task.js';
 import { atTime, minutesBetween } from './local-date-time.js';
 import { addDays, type LocalDate } from './local-date.js';
-import { contains, daysOf, type PlanningWeek } from './planning-week.js';
+import {
+  DAYS_IN_PLANNING_WEEK,
+  contains,
+  daysOf,
+  lastDayOf,
+  type PlanningWeek,
+} from './planning-week.js';
 import type { SchedulingConfig } from './scheduling-config.js';
 
 /** R10a: housekeepers available on one date — input to planning, one entry for every day of the week. */
@@ -17,7 +23,8 @@ export interface DayLoad {
   readonly available: number;
 }
 
-export type ShortfallReason = 'NO_STAFF';
+/** NO_STAFF: no housekeeper on any day it still fitted. DEADLINE_PASSED: a carried task that no longer fits (R5g). */
+export type ShortfallReason = 'NO_STAFF' | 'DEADLINE_PASSED';
 
 /** R10a: a task that cannot be staffed — reported, never dropped. */
 export interface Shortfall {
@@ -33,6 +40,8 @@ export interface WeekPlan {
   /** One entry per day of the planning week. */
   readonly days: readonly DayLoad[];
   readonly shortfall: readonly Shortfall[];
+  /** R5g: still waiting after the week's last day, planned for the next week's first day → next week's input. */
+  readonly carriedOver: readonly CleaningTask[];
 }
 
 export interface PlanWeekInput {
@@ -41,34 +50,54 @@ export interface PlanWeekInput {
   readonly headcount: readonly Headcount[];
   readonly week: PlanningWeek;
   readonly config: SchedulingConfig;
+  /** R5g: the previous week's `carriedOver`; each must have departed before this week starts. */
+  readonly carriedOver?: readonly CleaningTask[];
 }
 
 /**
- * Plans the week day by day from each day's headcount — R5c–R5e, R10a, invariants 1, 8, 9, 14, 15.
- * A day's candidates (that day's departures + tasks still waiting) are staffed in priority order (R5d);
- * the rest wait for the next day while they still fit before their deadline, otherwise go to shortfall.
- * Throws on invalid input (headcount missing / duplicated / not an integer ≥ 0, task departing outside the week).
+ * Plans the week day by day from each day's headcount — R5c–R5e, R5g, R10a, invariants 1, 8, 9, 14, 15.
+ * A day's candidates (that day's departures + tasks still waiting, incl. carried-in ones) are staffed in priority
+ * order (R5d); the rest wait for the next day while they still fit before their deadline, otherwise go to shortfall.
+ * After the last day, waiting tasks are carried over to the next week (R5g).
+ * Throws on invalid input (headcount missing / duplicated / not an integer ≥ 0, task departing outside the week,
+ * carried task not departed before the week or given twice).
  */
-export function planWeek({ tasks, headcount, week, config }: PlanWeekInput): WeekPlan {
+export function planWeek({
+  tasks,
+  headcount,
+  week,
+  config,
+  carriedOver = [],
+}: PlanWeekInput): WeekPlan {
   const availableOn = validHeadcount(headcount, week);
   const outside = tasks.filter((t) => !contains(week, t.departureDate));
   if (outside.length > 0) {
     throw new Error(
-      `Invalid tasks: departing outside the planning week: ${outside.map((t) => `cottage ${String(t.cottageNumber)} on ${t.departureDate}`).join(', ')}`,
+      `Invalid tasks: departing outside the planning week: ${outside.map(describe).join(', ')}`,
     );
   }
+  validCarriedOver(carriedOver, week);
 
   const staffed: CleaningTask[] = [];
   const shortfall: Shortfall[] = [];
   const days: DayLoad[] = [];
+  const carried: CleaningTask[] = [];
+  const nextWeekStart = addDays(week.start, DAYS_IN_PLANNING_WEEK); // R5g
+  const lastDay = lastDayOf(week);
 
+  // R5g: carried-in tasks are candidates from the first day, unless they no longer fit there.
   let waiting: CleaningTask[] = [];
+  for (const task of carriedOver) {
+    if (fitsOn(task, week.start, config)) waiting.push(task);
+    else shortfall.push({ task, reason: 'DEADLINE_PASSED' });
+  }
+
   for (const date of daysOf(week)) {
     const available = availableOn.get(date) ?? 0; // never 0 by default: validHeadcount has checked every day
     const candidates = [...waiting, ...tasks.filter((t) => t.departureDate === date)].sort(
       byPriority,
     );
-    const next = addDays(date, 1);
+    const next = date === lastDay ? nextWeekStart : addDays(date, 1);
     waiting = [];
 
     let free = available;
@@ -76,17 +105,18 @@ export function planWeek({ tasks, headcount, week, config }: PlanWeekInput): Wee
       if (task.requiredCrewSize <= free) {
         staffed.push(plannedOn(task, date, config));
         free -= task.requiredCrewSize;
-      } else if (contains(week, next) && fitsOn(task, next, config)) {
-        waiting.push(task); // R5c: deferred, still finishes before the next arrival
-      } else {
-        // Past the week's last day: shortfall for now; carry-over (R5g) is not implemented yet.
+      } else if (!fitsOn(task, next, config)) {
         shortfall.push({ task, reason: 'NO_STAFF', lastPossibleDate: date });
+      } else if (next === nextWeekStart) {
+        carried.push(plannedOn(task, next, config)); // R5g
+      } else {
+        waiting.push(task); // R5c: deferred, still finishes before the next arrival
       }
     }
     days.push({ date, needed: sumCrew(candidates), available });
   }
 
-  return { tasks: staffed, days, shortfall };
+  return { tasks: staffed, days, shortfall, carriedOver: carried };
 }
 
 /**
@@ -155,6 +185,28 @@ function validHeadcount(
 
   return byDate;
 }
+
+/** R5g: carried tasks departed before the week starts, at most one per cottage and departure date (invariant 11). */
+function validCarriedOver(carriedOver: readonly CleaningTask[], week: PlanningWeek): void {
+  const notBefore = carriedOver.filter((t) => t.departureDate >= week.start);
+  const seen = new Set<string>();
+  const duplicated = carriedOver.filter((t) => {
+    const key = describe(t);
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
+  });
+  const problems = [
+    notBefore.length > 0
+      ? `not departed before ${week.start}: ${notBefore.map(describe).join(', ')}`
+      : '',
+    duplicated.length > 0 ? `duplicated ${duplicated.map(describe).join(', ')}` : '',
+  ].filter((p) => p !== '');
+  if (problems.length > 0) throw new Error(`Invalid carried tasks: ${problems.join('; ')}`);
+}
+
+const describe = (t: CleaningTask): string =>
+  `cottage ${String(t.cottageNumber)} on ${t.departureDate}`;
 
 const sumCrew = (tasks: readonly CleaningTask[]): number =>
   tasks.reduce((sum, t) => sum + t.requiredCrewSize, 0);

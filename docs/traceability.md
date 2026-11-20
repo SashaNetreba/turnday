@@ -7,12 +7,12 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 12 of 24 covered
+- Rules: 13 of 24 covered
 - Invariants: 10 of 17 covered
 
 ## NOT COVERED
 
-- Rules: R5f, R5g, R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
+- Rules: R5f, R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
 - Invariants: 2, 3, 4, 4a, 6, 10, 16
 
 ## Rules
@@ -30,7 +30,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5d | 3 | covered |
 | R5e | 1 | covered |
 | R5f | 0 | **NOT COVERED** |
-| R5g | 0 | **NOT COVERED** |
+| R5g | 8 | covered |
 | R6 | 2 | covered |
 | R7 | 0 | **NOT COVERED** |
 | R7a | 0 | **NOT COVERED** |
@@ -48,7 +48,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 | Invariant | Tests | Status |
 |---|---|---|
-| 1 | 1 | covered |
+| 1 | 2 | covered |
 | 2 | 0 | **NOT COVERED** |
 | 3 | 0 | **NOT COVERED** |
 | 4 | 0 | **NOT COVERED** |
@@ -166,6 +166,17 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5e — deferred tasks on the new day › R5e: a same-day arrival wins the last housekeeper over a deferred task, which moves on
 
+### R5g
+
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a carried task that can no longer be finished on the first day goes to shortfall as DEADLINE_PASSED
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a carried task that departs on or after the first day of the week is rejected as invalid input
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a carried-over task's tight / at-risk flags are recalculated for the next week's first day
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a task still waiting after the week's last day is carried over, not shortfall
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a task that cannot be finished on the next week's first day goes to shortfall, not carried over
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: carried tasks are candidates on the next week's first day and compete by the same priority
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: two carried tasks for the same cottage and departure date are rejected as invalid input, listing them
+- packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
+
 ### R6
 
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
@@ -173,7 +184,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ### R10a
 
-- packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed or in shortfall, exactly once, and no day exceeds its headcount
+- packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day given twice in the headcount is rejected, listing the date
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day with zero staff lists its tasks that cannot wait as shortfall
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a headcount with missing dates is rejected, listing the dates — never treated as 0
@@ -187,7 +198,8 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ### Invariant 1
 
-- packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed or in shortfall, exactly once, and no day exceeds its headcount
+- packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount
+- packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
 
 ### Invariant 5
 

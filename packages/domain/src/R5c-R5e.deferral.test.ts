@@ -8,9 +8,12 @@ import {
   bookingArb,
   headcountArb,
   headcountFor,
+  lastStay,
   seedConfig,
   seedCottages,
+  stay,
   timeArb,
+  turnover,
   weekArb,
 } from './test-fixtures.js';
 
@@ -26,21 +29,6 @@ function plan(bookings: readonly Booking[], headcount: readonly Headcount[]): We
     config,
   });
 }
-
-/** Out on `out`; the next guest arrives on `arrival` (default check-in 16:00 unless `checkin` is given). */
-const stay = (cottage: number, out: string, arrival: string, checkin?: string): Booking[] => [
-  booking(`OUT/${String(cottage)}`, cottage, '2026-11-10', out),
-  {
-    ...booking(`IN/${String(cottage)}`, cottage, arrival, '2026-11-30'),
-    ...(checkin === undefined ? {} : { checkinTime: localTime(checkin) }),
-  },
-];
-/** Out on `out` with the next guest arriving the same day: cannot wait. */
-const turnover = (cottage: number, out: string): Booking[] => stay(cottage, out, out);
-/** Out on `out`, no next arrival known: no deadline. */
-const lastStay = (cottage: number, out: string): Booking[] => [
-  booking(`OUT/${String(cottage)}`, cottage, '2026-11-10', out),
-];
 
 const onDay = (p: WeekPlan, date: string): number[] =>
   p.tasks.filter((t) => t.plannedDate === date).map((t) => t.cottageNumber);
@@ -197,7 +185,8 @@ describe('R5c–R5e — properties', () => {
       .array(
         fc.record({
           cottage: fc.constantFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15),
-          outOffset: fc.integer({ min: 0, max: 6 }),
+          // Last day weighted up: overflow there is carried over (R5g), across the week boundary.
+          outOffset: fc.oneof(fc.integer({ min: 0, max: 6 }), fc.constant(6)),
           gap: fc.option(fc.integer({ min: 0, max: 3 }), { nil: undefined }),
           // 14:30 / 15:00 = zero slack on the arrival day for stable / premium (workdayStart 10:00).
           checkin: fc.option(
@@ -274,7 +263,9 @@ describe('R5c–R5e — properties', () => {
   it('invariant 14 / R5c: at risk ⇔ deadline − windowStart < estimate; a deferred task is never at risk', () => {
     fc.assert(
       fc.property(scenarioArb, ([bookings, w, headcount]) => {
-        for (const t of run(bookings, w, headcount).p.tasks) {
+        const { p } = run(bookings, w, headcount);
+        // Carried-over tasks (R5g) are deferred to the next week's first day: same rule.
+        for (const t of [...p.tasks, ...p.carriedOver]) {
           const window = t.deadline === undefined ? undefined : minutes(windowStart(t), t.deadline);
           expect(t.atRisk).toBe(window !== undefined && window < t.estimatedMinutes);
           expect(t.tight).toBe(window !== undefined && window - t.estimatedMinutes <= 0);

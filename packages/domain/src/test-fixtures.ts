@@ -58,6 +58,28 @@ export function headcountFor(
   return daysOf(week).map((date) => ({ date, available: perDay[date] ?? available }));
 }
 
+// ---- Booking scenarios for planning tests ----
+
+/** Out on `out`; the next guest arrives on `arrival` (default check-in 16:00 unless `checkin` is given). */
+export const stay = (
+  cottage: number,
+  out: string,
+  arrival: string,
+  checkin?: string,
+): Booking[] => [
+  booking(`OUT/${String(cottage)}`, cottage, '2026-11-10', out),
+  {
+    ...booking(`IN/${String(cottage)}`, cottage, arrival, '2026-11-30'),
+    ...(checkin === undefined ? {} : { checkinTime: localTime(checkin) }),
+  },
+];
+/** Out on `out` with the next guest arriving the same day: cannot wait. */
+export const turnover = (cottage: number, out: string): Booking[] => stay(cottage, out, out);
+/** Out on `out`, no next arrival known: no deadline. */
+export const lastStay = (cottage: number, out: string): Booking[] => [
+  booking(`OUT/${String(cottage)}`, cottage, '2026-11-10', out),
+];
+
 /** Seed SchedulingConfig (docs/domain-model.md §3): the manager's planning values. */
 export function seedConfig(): SchedulingConfig {
   return {

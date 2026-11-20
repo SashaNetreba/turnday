@@ -244,10 +244,13 @@ TimeEntry
   - Cottage 5 out Saturday, in Sunday 16:00: a free housekeeper on Saturday → Saturday; nobody free on Saturday →
     Sunday (10:00 + 270 = 14:30 ≤ 16:00); nobody on Sunday either → shortfall.
 - **R5g. Carry-over.** A task still waiting after the planning week's last day is **not** a shortfall: it is returned
-  in `carriedOver` (`deferred = true`). Planning accepts the previous week's `carriedOver` as input; carried tasks are
+  in `carriedOver` (`deferred = true`, `plannedDate` = the next week's first day = week start + 7, `tight` / `atRisk`
+  recalculated for that day as for any deferred task, R5c) — only if it still fits there; otherwise it is a shortfall.
+  Planning accepts the previous week's `carriedOver` as input; carried tasks are
   candidates from the week's first day and ordered by R5d with the others. A carried task that can no longer be
   finished on the week's first day (`start + workdayStart + estimatedMinutes > deadline`) goes to shortfall with reason
-  `DEADLINE_PASSED`. A carried task must have departed before the week starts; otherwise the input is invalid.
+  `DEADLINE_PASSED`. A carried task must have departed before the week starts, and two carried tasks for the same
+  cottage and departure date are not allowed (invariant 11); otherwise the input is invalid.
 
 ### Crew
 - **R6.** Default crew size is 1 (one housekeeper — one cottage), for stable **and** premium. Every task gets
