@@ -109,7 +109,7 @@ Headcount                     # R10a: input to planning, one entry for every day
 WeekPlan                      # output of planning one week (R5c–R5g, R10a)
   tasks: [CleaningTask]       # staffed, plannedDate within the week
   days: [{ date, needed, available }]   # needed = Σ requiredCrewSize of that day's candidates;
-                                        # on Sat/Sun only those that cannot wait until Monday (R10a, R5f)
+                                        # on Sat/Sun only those that cannot wait until Monday (R5f)
   shortfall: [{ task, reason: NO_STAFF | DEADLINE_PASSED, lastPossibleDate? }]
                               # lastPossibleDate (NO_STAFF): last day the task could still have been cleaned
   carriedOver: [CleaningTask] # still waiting after the week's last day → input to the next week (R5g)
@@ -236,9 +236,11 @@ TimeEntry
   on its departure day if a housekeeper is free, otherwise on the next day it still fits before the deadline; if
   none → shortfall. Every other weekend candidate is deferred to Monday, even if housekeepers are free, and competes
   there by R5d. Who works the weekend is decided by the rotation (R12).
+  On a Saturday or Sunday, **staff needed** (R10a) counts only the candidates that cannot wait until Monday; tasks
+  deferred to Monday by this rule are not needed that day.
   Examples:
   - Sunday departures from 2, 4, 7, 8; only 7 has an arrival on Sunday 16:00 → only 7 is cleaned on Sunday;
-    2, 4 and 8 move to Monday.
+    2, 4 and 8 move to Monday. With one housekeeper on Sunday: needed 1, available 1, no shortage.
   - Cottage 5 out Saturday, in Sunday 16:00: a free housekeeper on Saturday → Saturday; nobody free on Saturday →
     Sunday (10:00 + 270 = 14:30 ≤ 16:00); nobody on Sunday either → shortfall.
 - **R5g. Carry-over.** A task still waiting after the planning week's last day is **not** a shortfall: it is returned
@@ -262,10 +264,11 @@ TimeEntry
 - **R10.** A housekeeper is never scheduled on a day they are unavailable.
 - **R10a. Shortfall.** Planning takes a **headcount** for every day of the planning week (housekeepers available,
   integer ≥ 0). A missing day, or a negative or non-integer count, makes the input **invalid**: it is rejected
-  with the list of affected dates, never treated as 0. (Deriving headcount from `Housekeeper` + `Availability` belongs to R10.)
-  **Staff needed on a day** = Σ `requiredCrewSize` of that day's candidates (R5c). On a Saturday or Sunday only the
-  candidates that cannot wait until Monday (R5f) count; tasks deferred to Monday by the weekend rule are not needed that day.
-  Example: Sunday departures 2, 4, 7, 8, only 7 with a Sunday arrival, one housekeeper → needed 1, available 1, no shortage.
+  with the list of affected dates, never treated as 0. A day given twice is invalid too; dates outside the week are
+  ignored. A task in `tasks` that departs outside the planning week makes the input invalid instead of being dropped.
+  This check applies to `tasks` only: tasks carried over from the previous week (R5g) are a separate input and are
+  expected to have departed before the week starts. (Deriving headcount from `Housekeeper` + `Availability` belongs to R10.)
+  **Staff needed on a day** = Σ `requiredCrewSize` of that day's candidates (R5c). Weekend counting: see R5f.
   If staff needed > staff available, the schedule is still produced, and every task that can be neither staffed nor
   deferred is listed in the **shortfall** report — never silently dropped.
 

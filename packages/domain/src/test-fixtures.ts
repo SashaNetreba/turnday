@@ -5,11 +5,12 @@ import type {
   Booking,
   BookingStatus,
   Cottage,
+  Headcount,
   LocalTime,
   PlanningWeek,
   SchedulingConfig,
 } from './index.js';
-import { addDays, localDate, localTime } from './index.js';
+import { addDays, daysOf, localDate, localTime } from './index.js';
 
 /** Seed reference data (docs/domain-model.md §3): 1–10 STABLE, 11/12/15 PREMIUM, 14 not schedulable, 13 missing. */
 export function seedCottages(): Cottage[] {
@@ -46,6 +47,15 @@ export function booking(
     departureDate: localDate(departure),
     status,
   };
+}
+
+/** Headcount for every day of `week`: `available` by default, `perDay` overrides by ISO date. */
+export function headcountFor(
+  week: PlanningWeek,
+  available: number,
+  perDay: Readonly<Record<string, number>> = {},
+): Headcount[] {
+  return daysOf(week).map((date) => ({ date, available: perDay[date] ?? available }));
 }
 
 /** Seed SchedulingConfig (docs/domain-model.md §3): the manager's planning values. */

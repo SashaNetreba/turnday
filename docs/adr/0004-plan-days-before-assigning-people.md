@@ -11,10 +11,10 @@ chains, so a task can still be waiting after the planning week ends (R5g). The d
 (ADR 0001), so whatever carries over into the next week must travel through the function's input and output.
 
 ## Decision
-Planning runs in two steps. First, a pure `planWeek(tasks, headcount, week, config, carriedOver)` fixes each task's
-`plannedDate` using the daily headcount only, and returns staffed tasks, per-day needed/available, the shortfall
-report and `carriedOver`. Second, a later function will assign people to the tasks planned for each day. Carry-over
-is part of the explicit output and becomes the next week's input; the domain keeps no hidden state between weeks.
+Plan days by headcount before assigning people. First, each task's planned day is fixed from the number of
+housekeepers available per day only. Then, in a later step, people are assigned to the tasks planned for each day.
+Tasks carried over to the next week are an explicit output that becomes the next week's input; the domain keeps no
+hidden state between weeks.
 
 ## Alternatives considered
 - One combined solver for days and people — needs R7–R12 before deferral can ship, and is harder to test one rule at a time.

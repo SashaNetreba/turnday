@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 8 of 24 covered
-- Invariants: 5 of 17 covered
+- Rules: 9 of 24 covered
+- Invariants: 6 of 17 covered
 
 ## NOT COVERED
 
-- Rules: R5c, R5d, R5e, R5f, R5g, R7, R7a, R8, R9, R10, R10a, R11, R12, R13, R14, R15
-- Invariants: 1, 2, 3, 4, 4a, 6, 7, 8, 9, 10, 15, 16
+- Rules: R5c, R5d, R5e, R5f, R5g, R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
+- Invariants: 2, 3, 4, 4a, 6, 7, 8, 9, 10, 15, 16
 
 ## Rules
 
@@ -37,7 +37,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R8 | 0 | **NOT COVERED** |
 | R9 | 0 | **NOT COVERED** |
 | R10 | 0 | **NOT COVERED** |
-| R10a | 0 | **NOT COVERED** |
+| R10a | 9 | covered |
 | R11 | 0 | **NOT COVERED** |
 | R12 | 0 | **NOT COVERED** |
 | R13 | 0 | **NOT COVERED** |
@@ -48,7 +48,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 | Invariant | Tests | Status |
 |---|---|---|
-| 1 | 0 | **NOT COVERED** |
+| 1 | 1 | covered |
 | 2 | 0 | **NOT COVERED** |
 | 3 | 0 | **NOT COVERED** |
 | 4 | 0 | **NOT COVERED** |
@@ -148,7 +148,23 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike
 
+### R10a
+
+- packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed or in shortfall, exactly once, and no day exceeds its headcount
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day given twice in the headcount is rejected, listing the date
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day with zero staff lists its tasks that cannot wait as shortfall
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a headcount with missing dates is rejected, listing the dates — never treated as 0
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a negative or non-integer headcount is rejected, listing the dates
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a staffed task stays on its departure day, not deferred
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a task departing outside the planning week is rejected, not silently dropped
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: on a short day the tasks that cannot be staffed are listed as shortfall, never dropped
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: with enough staff there is no shortfall and every day of the week is reported
+
 ## Invariants → tests
+
+### Invariant 1
+
+- packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed or in shortfall, exactly once, and no day exceeds its headcount
 
 ### Invariant 5
 
