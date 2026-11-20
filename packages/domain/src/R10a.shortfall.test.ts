@@ -2,10 +2,11 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import type { Booking, CleaningTask, Headcount, PlanningWeek, WeekPlan } from './index.js';
-import { daysOf, deriveCleaningTasks, localDate, planWeek } from './index.js';
+import { deriveCleaningTasks, localDate, planWeek } from './index.js';
 import {
   booking,
   bookingArb,
+  headcountArb,
   headcountFor,
   seedConfig,
   seedCottages,
@@ -25,6 +26,7 @@ function plan(
     tasks: deriveCleaningTasks(bookings, cottages, w, config),
     headcount,
     week: w,
+    config,
   });
 }
 
@@ -117,18 +119,13 @@ describe('R10a — staff needed vs available, shortfall', () => {
     const nextWeek = { start: localDate('2026-11-23') };
     const tasks = deriveCleaningTasks(turnover(4, '2026-11-24'), cottages, nextWeek, config);
 
-    expect(() => planWeek({ tasks, headcount: headcountFor(week, 2), week })).toThrow(
+    expect(() => planWeek({ tasks, headcount: headcountFor(week, 2), week, config })).toThrow(
       /outside the planning week.*cottage 4 on 2026-11-24/,
     );
   });
 });
 
 describe('R10a — properties', () => {
-  const headcountArb = (w: PlanningWeek): fc.Arbitrary<Headcount[]> =>
-    fc
-      .array(fc.integer({ min: 0, max: 4 }), { minLength: 7, maxLength: 7 })
-      .map((counts) => daysOf(w).map((date, i) => ({ date, available: counts[i] ?? 0 })));
-
   it('invariant 1 / R10a: every task is staffed or in shortfall, exactly once, and no day exceeds its headcount', () => {
     fc.assert(
       fc.property(
@@ -136,7 +133,7 @@ describe('R10a — properties', () => {
         weekArb.chain((w) => fc.tuple(fc.constant(w), headcountArb(w))),
         (bookings, [w, headcount]) => {
           const tasks = deriveCleaningTasks(bookings, cottages, w, config);
-          const p = planWeek({ tasks, headcount, week: w });
+          const p = planWeek({ tasks, headcount, week: w, config });
 
           const placed = [...p.tasks, ...p.shortfall.map((s) => s.task)].map(key).sort();
           expect(placed).toEqual(tasks.map(key).sort());

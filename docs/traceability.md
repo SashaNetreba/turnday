@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 9 of 24 covered
-- Invariants: 6 of 17 covered
+- Rules: 12 of 24 covered
+- Invariants: 10 of 17 covered
 
 ## NOT COVERED
 
-- Rules: R5c, R5d, R5e, R5f, R5g, R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
-- Invariants: 2, 3, 4, 4a, 6, 7, 8, 9, 10, 15, 16
+- Rules: R5f, R5g, R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
+- Invariants: 2, 3, 4, 4a, 6, 10, 16
 
 ## Rules
 
@@ -26,9 +26,9 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5 | 12 | covered |
 | R5a | 17 | covered |
 | R5b | 6 | covered |
-| R5c | 0 | **NOT COVERED** |
-| R5d | 0 | **NOT COVERED** |
-| R5e | 0 | **NOT COVERED** |
+| R5c | 10 | covered |
+| R5d | 3 | covered |
+| R5e | 1 | covered |
 | R5f | 0 | **NOT COVERED** |
 | R5g | 0 | **NOT COVERED** |
 | R6 | 2 | covered |
@@ -55,15 +55,15 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 4a | 0 | **NOT COVERED** |
 | 5 | 1 | covered |
 | 6 | 0 | **NOT COVERED** |
-| 7 | 0 | **NOT COVERED** |
-| 8 | 0 | **NOT COVERED** |
-| 9 | 0 | **NOT COVERED** |
+| 7 | 1 | covered |
+| 8 | 1 | covered |
+| 9 | 1 | covered |
 | 10 | 0 | **NOT COVERED** |
 | 11 | 2 | covered |
 | 12 | 2 | covered |
 | 13 | 2 | covered |
-| 14 | 1 | covered |
-| 15 | 0 | **NOT COVERED** |
+| 14 | 2 | covered |
+| 15 | 1 | covered |
 | 16 | 0 | **NOT COVERED** |
 
 ## Rules → tests
@@ -143,6 +143,29 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5b.at-risk.test.ts › R5b — at risk › R5b: zero slack is tight but not at risk (premium out 11:00, in 16:00, 300 min)
 - packages/domain/src/R5b.at-risk.test.ts › R5b — properties › invariant 14 / R5b: atRisk ⇔ a deadline exists and window < estimatedMinutes; atRisk ⇒ tight
 
+### R5c
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: a deferred task keeps departureDate and earliestStart, has plannedDate > departureDate and deferred = true
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: a task that cannot be finished on the next day before its deadline goes to shortfall instead of being deferred
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: a task without a deadline waits until a day with a free housekeeper
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: premium with check-in 15:00 deferred onto its arrival day is tight but not at risk
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: premium with early check-in 14:00 is not deferred onto its arrival day and goes to shortfall
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: the arrival day counts when workdayStart + estimate fits before check-in (stable, 14:30 ≤ 16:00)
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 14 / R5c: at risk ⇔ deadline − windowStart < estimate; a deferred task is never at risk
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 15 / R5c: deferred ⇔ plannedDate > departureDate; departureDate and earliestStart never change
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 8 / R5c: no deferred task is planned past its deadline; a staffed task that cannot meet it is at risk
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days, and never with a same-day arrival
+
+### R5d
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 7 / R5d: the same tasks in any order give the same plan
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: on Sunday the only free housekeeper goes to the cottage with a same-day arrival (7), not the lowest number (2)
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: on a short day the tasks that can wait longest move first; on a tie the higher cottage number moves
+
+### R5e
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5e — deferred tasks on the new day › R5e: a same-day arrival wins the last housekeeper over a deferred task, which moves on
+
 ### R6
 
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
@@ -170,6 +193,18 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — properties › invariant 5 / R3: no task exists for a non-schedulable or non-existent cottage
 
+### Invariant 7
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 7 / R5d: the same tasks in any order give the same plan
+
+### Invariant 8
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 8 / R5c: no deferred task is planned past its deadline; a staffed task that cannot meet it is at risk
+
+### Invariant 9
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days, and never with a same-day arrival
+
 ### Invariant 11
 
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / invariant 11: duplicate bookings for the same cottage and departure date collapse into one task
@@ -188,6 +223,11 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### Invariant 14
 
 - packages/domain/src/R5b.at-risk.test.ts › R5b — properties › invariant 14 / R5b: atRisk ⇔ a deadline exists and window < estimatedMinutes; atRisk ⇒ tight
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 14 / R5c: at risk ⇔ deadline − windowStart < estimate; a deferred task is never at risk
+
+### Invariant 15
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 15 / R5c: deferred ⇔ plannedDate > departureDate; departureDate and earliestStart never change
 
 ## Unknown references
 

@@ -64,6 +64,7 @@ export function seedConfig(): SchedulingConfig {
     estimatedMinutes: { STABLE: 270, PREMIUM: 300 },
     defaultCheckoutTime: localTime('10:00'),
     defaultCheckinTime: localTime('16:00'),
+    workdayStart: localTime('10:00'),
   };
 }
 
@@ -117,3 +118,9 @@ export const bookingArb = (withTimes = true): fc.Arbitrary<Booking> =>
 export const weekArb: fc.Arbitrary<PlanningWeek> = fc
   .integer({ min: -3, max: 3 })
   .map((offset) => ({ start: addDays(propertyBase, offset) }));
+
+/** Headcount 0–`max` for every day of `week`. */
+export const headcountArb = (week: PlanningWeek, max = 4): fc.Arbitrary<Headcount[]> =>
+  fc
+    .array(fc.integer({ min: 0, max }), { minLength: 7, maxLength: 7 })
+    .map((counts) => daysOf(week).map((date, i) => ({ date, available: counts[i] ?? 0 })));

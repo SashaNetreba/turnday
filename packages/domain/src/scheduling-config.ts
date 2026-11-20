@@ -9,4 +9,6 @@ export interface SchedulingConfig {
   readonly defaultCheckoutTime: LocalTime;
   /** R5: used when the next booking has no checkinTime. */
   readonly defaultCheckinTime: LocalTime;
+  /** R5c: housekeepers start work; the window of a deferred task starts here. */
+  readonly workdayStart: LocalTime;
 }
