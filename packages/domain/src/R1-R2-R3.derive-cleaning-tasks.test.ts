@@ -179,7 +179,7 @@ describe('deriveCleaningTasks — examples', () => {
     expect(tasks).toEqual([]);
   });
 
-  it('R1/R2/R3: RezLynx sample week 13–19 Nov 2026', () => {
+  it('R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026', () => {
     // Transcribed from tests/fixtures/rezlynx-guest-list.sample.csv (BookRef, RoomID, Arrival, Departure only).
     // The domain cannot read files; parsing the CSV is the importer's job.
     const sample = [

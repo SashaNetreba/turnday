@@ -70,8 +70,8 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ### R1
 
+- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / invariant 11: duplicate bookings for the same cottage and departure date collapse into one task
-- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1/R2/R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: among duplicates the booking with the lowest externalRef is kept as bookingRef
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: creates one task per booking departing in the planning week
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: ignores cancelled bookings
@@ -82,13 +82,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ### R2
 
-- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1/R2/R3: RezLynx sample week 13–19 Nov 2026
+- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R2: does not clean a stayover (booking spans the day without departing)
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R2: does not clean an empty cottage
 
 ### R3
 
-- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1/R2/R3: RezLynx sample week 13–19 Nov 2026
+- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R3: never creates a task for non-existent cottage 13
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R3: never creates a task for non-schedulable cottage 14
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — properties › invariant 5 / R3: no task exists for a non-schedulable or non-existent cottage

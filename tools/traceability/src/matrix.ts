@@ -43,6 +43,9 @@ export interface Matrix {
 
 const RULE_REF = /(?<![A-Za-z0-9])R(\d+[a-z]?)(?![A-Za-z0-9])/g;
 const INVARIANT_REF = /\binvariant (\d+[a-z]?)\b/g;
+// A test title's prefix (before the first colon) must be only IDs, separated by " / " or ",".
+const ID = String.raw`(?:R\d+[a-z]?|invariant \d+[a-z]?)`;
+const STRICT_PREFIX = new RegExp(String.raw`^${ID}(?:(?: / |, ?)${ID})*$`);
 const NEAR_MISSES: RegExp[] = [
   /\bInvariants?\s+\d+[a-z]?\b/g, // capitalised
   /\binvariants\b[^:]*/g, // plural: "invariants 11, 12"
@@ -100,6 +103,28 @@ function hasIds(refs: Refs): boolean {
   return refs.rules.length > 0 || refs.invariants.length > 0;
 }
 
+const NO_REFS: Refs = { rules: [], invariants: [], nearMisses: [] };
+
+/**
+ * The IDs a test title counts for: only those in a prefix before the first colon that consists of IDs alone.
+ * Anything else credits nothing; `problems` says why, when the title mentions IDs at all.
+ */
+function titleRefs(title: string): { refs: Refs; problems: string[] } {
+  const colon = title.indexOf(':');
+  const prefix = colon === -1 ? undefined : title.slice(0, colon);
+  if (prefix !== undefined && STRICT_PREFIX.test(prefix))
+    return { refs: extractRefs(prefix), problems: [] };
+  const all = extractRefs(title);
+  if (!hasIds(all) && all.nearMisses.length === 0) return { refs: NO_REFS, problems: [] };
+  const problems =
+    prefix === undefined
+      ? ['IDs but no colon prefix']
+      : all.nearMisses.length > 0
+        ? all.nearMisses.map((miss) => `near miss: "${miss}"`)
+        : ['prefix is not only IDs'];
+  return { refs: NO_REFS, problems };
+}
+
 function label(t: TestCase): string {
   return [t.file, ...t.ancestorTitles, t.title].join(' › ');
 }
@@ -118,17 +143,8 @@ export function buildMatrix(model: DomainModel, tests: TestCase[]): Matrix {
 
   for (const t of tests) {
     const name = label(t);
-    let refs = extractRefs(t.title);
-    if (!hasIds(refs)) {
-      const nearest = [...t.ancestorTitles].reverse().map(extractRefs).find(hasIds);
-      if (nearest) {
-        refs = nearest;
-        matrix.nonConforming.push({ test: name, reason: 'IDs only in describe block' });
-      }
-    }
-    for (const miss of [t.title, ...t.ancestorTitles].flatMap((s) => extractRefs(s).nearMisses)) {
-      matrix.nonConforming.push({ test: name, reason: `near miss: "${miss}"` });
-    }
+    const { refs, problems } = titleRefs(t.title);
+    for (const reason of problems) matrix.nonConforming.push({ test: name, reason });
 
     const counted = t.status === 'passed';
     if (!counted) matrix.excluded.push({ test: name, status: t.status });

@@ -48,11 +48,17 @@ Tests reference rule and invariant IDs **in the test title**, so the traceabilit
 | Example test, several rules | `R<id> / R<id>: <behaviour>` | `R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026` |
 | Property test | `invariant <n> / R<id>: <property>` | `invariant 12 / R5: earliestStart is always on the departure date` |
 
-- Rule IDs are whole tokens: `R5` never matches `R5a`, and `R5a` never matches `R5`. Separators (`/`, space, comma) don't matter.
+- Only the IDs **before the first colon** count. The prefix must consist of IDs alone, separated by ` / ` or `,`.
+  The text after the colon is the behaviour: mentioning another rule there (`R6: … (R8 raises it later)`) gives R8
+  no coverage, so the matrix can't show coverage a test doesn't have.
+- A title whose prefix is not only IDs credits nothing and is listed as non-conforming (`prefix is not only IDs`).
+  Watch out for times: in `R5f Monday check-in 14:30 waits`, the first colon is inside `14:30`. Times belong after the
+  colon: `R5f: a Monday check-in at 14:30 waits`.
+- A title with IDs but no colon credits nothing and is listed as non-conforming (`IDs but no colon prefix`).
+- Rule IDs are whole tokens: `R5` never matches `R5a`, and `R5a` never matches `R5`.
 - Invariants are written `invariant <n>` (lowercase), once per invariant: `invariant 11 / invariant 12`, never
   `invariants 11, 12`, `Invariant 11` or `inv 11`. Such near misses are reported as non-conforming.
-- IDs in a `describe` title are context for the reader. They are used only when the test title has no IDs at all, and
-  such tests are listed as non-conforming.
+- IDs in a `describe` title are context for the reader and are never counted.
 - A test that references an ID that doesn't exist in `domain-model.md` makes `pnpm test:matrix` fail.
 - Tests without any ID (e.g. the package smoke test) are allowed, and they are listed in the matrix.
 
