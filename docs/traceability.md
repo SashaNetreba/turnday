@@ -19,11 +19,11 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 | Rule | Tests | Status |
 |---|---|---|
-| R1 | 9 | covered |
-| R2 | 3 | covered |
-| R3 | 4 | covered |
-| R4 | 3 | covered |
-| R5 | 12 | covered |
+| R1 One task per departure | 9 | covered |
+| R2 No clean without a departure | 3 | covered |
+| R3 Non-schedulable cottages | 4 | covered |
+| R4 Estimated effort | 3 | covered |
+| R5 Time window | 12 | covered |
 | R5a Late checkout / early check-in | 17 | covered |
 | R5b At risk | 6 | covered |
 | R5c Deferral | 10 | covered |
@@ -31,18 +31,18 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5e Deferred tasks on the new day | 1 | covered |
 | R5f Weekend | 9 | covered |
 | R5g Carry-over | 8 | covered |
-| R6 | 2 | covered |
-| R7 | 0 | **NOT COVERED** |
-| R7a | 0 | **NOT COVERED** |
-| R8 | 0 | **NOT COVERED** |
-| R9 | 0 | **NOT COVERED** |
-| R10 | 0 | **NOT COVERED** |
+| R6 Default crew size | 2 | covered |
+| R7 Premium crew | 0 | **NOT COVERED** |
+| R7a Solo preferred for premium | 0 | **NOT COVERED** |
+| R8 Manual crew of 2 | 0 | **NOT COVERED** |
+| R9 One clean per housekeeper per day | 0 | **NOT COVERED** |
+| R10 Unavailable days | 0 | **NOT COVERED** |
 | R10a Shortfall | 9 | covered |
-| R11 | 0 | **NOT COVERED** |
-| R12 | 0 | **NOT COVERED** |
-| R13 | 0 | **NOT COVERED** |
-| R14 | 0 | **NOT COVERED** |
-| R15 | 0 | **NOT COVERED** |
+| R11 Even distribution | 0 | **NOT COVERED** |
+| R12 Weekend rotation | 0 | **NOT COVERED** |
+| R13 Own assignment, today only | 0 | **NOT COVERED** |
+| R14 One open time entry | 0 | **NOT COVERED** |
+| R15 UTC storage | 0 | **NOT COVERED** |
 
 ## Invariants
 
@@ -68,7 +68,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Rules → tests
 
-### R1
+### R1 One task per departure
 
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / invariant 11: duplicate bookings for the same cottage and departure date collapse into one task
@@ -80,26 +80,26 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — properties › R1: every task departs inside the planning week, from a valid non-cancelled booking
 - packages/domain/src/R4-R5.time-windows.test.ts › R5 — time window and tight flag › R5 / R1: duplicate departures collapse into one task → the latest checkout counts
 
-### R2
+### R2 No clean without a departure
 
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R2: does not clean a stayover (booking spans the day without departing)
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R2: does not clean an empty cottage
 
-### R3
+### R3 Non-schedulable cottages
 
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R3: never creates a task for non-existent cottage 13
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R3: never creates a task for non-schedulable cottage 14
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — properties › invariant 5 / R3: no task exists for a non-schedulable or non-existent cottage
 
-### R4
+### R4 Estimated effort
 
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 / R5 — properties › R4: estimatedMinutes always equals the config value for the cottage type
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: a config change (STABLE 240) changes estimatedMinutes without code changes
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: estimatedMinutes comes from the config by cottage type
 
-### R5
+### R5 Time window
 
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 / R5 — properties › invariant 12 / R5: earliestStart is always on the departure date
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 / R5 — properties › invariant 13 / R5: tight ⇔ a deadline exists and slack <= 0; no deadline → never tight
@@ -189,7 +189,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: two carried tasks for the same cottage and departure date are rejected as invalid input, listing them
 - packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
 
-### R6
+### R6 Default crew size
 
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike

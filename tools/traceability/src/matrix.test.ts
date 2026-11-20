@@ -72,6 +72,22 @@ describe('parseDomainModel', () => {
     });
   });
 
+  it('a bold label without a closing period still yields the rule and its label', () => {
+    const doc = [
+      '## 4. Business rules',
+      '',
+      '- **R1. With period.** Text.',
+      '- **R2. Without period** is the subject of the sentence.',
+      '',
+      '## 6. Invariants',
+      '',
+      '1. Something.',
+    ].join('\n');
+    const parsed = parseDomainModel(doc);
+    expect(parsed.rules).toEqual(['R1', 'R2']);
+    expect(parsed.labels).toEqual({ R1: 'With period', R2: 'Without period' });
+  });
+
   it('reads invariant IDs only from the Invariants section, including letter suffixes (4a)', () => {
     expect(model.invariants).toEqual(['1', '4', '4a', '11']);
   });
@@ -90,11 +106,12 @@ describe('parseDomainModel', () => {
     expect(real.invariants).toEqual(expect.arrayContaining(['1', '4a', '14']));
     expect(new Set(real.rules).size).toBe(real.rules.length);
     expect(real.labels).toMatchObject({
-      R5e: 'Deferred tasks on the new day', // bold label without a closing period
+      R5e: 'Deferred tasks on the new day',
       R5g: 'Carry-over',
+      R9: 'One clean per housekeeper per day',
       R10a: 'Shortfall',
     });
-    expect(real.labels).not.toHaveProperty('R6');
+    expect(real.rules.filter((id) => real.labels[id] === undefined)).toEqual([]);
   });
 });
 
