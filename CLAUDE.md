@@ -16,7 +16,8 @@ infrastructure  adapters: Prisma/PostgreSQL, RezLynx CSV importer, (later) RezLy
 Hard rules:
 - `packages/domain` must not import from `apps/*`, Prisma, NestJS, React or Node built-ins (`fs`, `http`). This is enforced by dependency-cruiser in CI — never weaken that config to make a build pass.
 - The domain talks to the outside world only through **ports** (interfaces) defined in `packages/domain`. Adapters implement them.
-- Time is passed in (a `Clock` port), never read from the system inside the domain. Store UTC, display Europe/London.
+- Time is passed in, never read from the system inside the domain. A `Clock` port is planned; it comes with the
+  API/adapters. Store UTC, display Europe/London.
 - Every business rule in `docs/domain-model.md` has an ID (R1, R5c…). Tests reference that ID in their name.
 
 ## Commands
@@ -52,4 +53,5 @@ Hard rules:
 - Real RezLynx exports contain guest names. They never enter the repo. Only `tests/fixtures/*.sample.csv` (anonymised) is committed.
 - The importer must never read or store `GuestName`, rates, totals, GDS/CRS refs.
 - Seed data uses fictional housekeeper names.
-- No secrets in code; config via `.env` (git-ignored), with `.env.example` committed.
+- No secrets in code; config via `.env` (git-ignored). `.env.example` will be added with the first env variable
+  (`.gitignore` already has the `!.env.example` exception).

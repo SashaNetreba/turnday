@@ -46,18 +46,20 @@ export default tseslint.config(
     },
   },
   {
-    // CLAUDE.md: time is passed in through the Clock port, never read from the system in the domain.
+    // CLAUDE.md: time is passed in, never read from the system in the domain (Clock port planned, comes with the API/adapters).
     files: ['packages/domain/src/**/*.ts'],
     rules: {
       'no-restricted-syntax': [
         'error',
         {
           selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
-          message: 'Do not read the system clock in the domain — use the Clock port.',
+          message:
+            'Do not read the system clock in the domain — pass the time in (Clock port planned, comes with the API/adapters).',
         },
         {
           selector: "NewExpression[callee.name='Date'][arguments.length=0]",
-          message: 'Do not read the system clock in the domain — use the Clock port.',
+          message:
+            'Do not read the system clock in the domain — pass the time in (Clock port planned, comes with the API/adapters).',
         },
       ],
     },
