@@ -7,12 +7,12 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 7 of 24 covered
+- Rules: 8 of 24 covered
 - Invariants: 5 of 17 covered
 
 ## NOT COVERED
 
-- Rules: R5c, R5d, R5e, R5f, R5g, R6, R7, R7a, R8, R9, R10, R10a, R11, R12, R13, R14, R15
+- Rules: R5c, R5d, R5e, R5f, R5g, R7, R7a, R8, R9, R10, R10a, R11, R12, R13, R14, R15
 - Invariants: 1, 2, 3, 4, 4a, 6, 7, 8, 9, 10, 15, 16
 
 ## Rules
@@ -31,7 +31,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5e | 0 | **NOT COVERED** |
 | R5f | 0 | **NOT COVERED** |
 | R5g | 0 | **NOT COVERED** |
-| R6 | 0 | **NOT COVERED** |
+| R6 | 2 | covered |
 | R7 | 0 | **NOT COVERED** |
 | R7a | 0 | **NOT COVERED** |
 | R8 | 0 | **NOT COVERED** |
@@ -142,6 +142,11 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5b.at-risk.test.ts › R5b — at risk › R5b: one minute short of the estimate is at risk (premium out 11:01, in 16:00)
 - packages/domain/src/R5b.at-risk.test.ts › R5b — at risk › R5b: zero slack is tight but not at risk (premium out 11:00, in 16:00, 300 min)
 - packages/domain/src/R5b.at-risk.test.ts › R5b — properties › invariant 14 / R5b: atRisk ⇔ a deadline exists and window < estimatedMinutes; atRisk ⇒ tight
+
+### R6
+
+- packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
+- packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike
 
 ## Invariants → tests
 

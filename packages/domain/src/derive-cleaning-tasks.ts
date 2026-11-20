@@ -15,7 +15,7 @@ interface EffectiveTimes {
 }
 
 /**
- * Cleaning demand for one planning week, with effort and time window — R1–R5b, invariants 11–14.
+ * Cleaning demand for one planning week, with effort, time window and crew size — R1–R5b, R6, invariants 11–14.
  * Only departures produce tasks, so stayovers and empty cottages never do (R2).
  * `bookings` must also cover the days after the week up to each cottage's next arrival (R5 input coverage);
  * otherwise a task has no deadline.
@@ -66,6 +66,7 @@ export function deriveCleaningTasks(
         plannedDate: first.departureDate,
         deferred: false,
         estimatedMinutes,
+        requiredCrewSize: 1, // R6
         earliestStart,
         ...(deadline === undefined ? {} : { deadline }),
         tight: window !== undefined && window - estimatedMinutes <= 0, // R5
