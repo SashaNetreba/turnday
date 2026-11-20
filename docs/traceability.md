@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 7 of 22 covered
-- Invariants: 5 of 15 covered
+- Rules: 14 of 24 covered
+- Invariants: 11 of 17 covered
 
 ## NOT COVERED
 
-- Rules: R5c, R5d, R5e, R6, R7, R7a, R8, R9, R10, R10a, R11, R12, R13, R14, R15
-- Invariants: 1, 2, 3, 4, 4a, 6, 7, 8, 9, 10
+- Rules: R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
+- Invariants: 2, 3, 4, 4a, 6, 10
 
 ## Rules
 
@@ -26,16 +26,18 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5 | 12 | covered |
 | R5a | 17 | covered |
 | R5b | 6 | covered |
-| R5c | 0 | **NOT COVERED** |
-| R5d | 0 | **NOT COVERED** |
-| R5e | 0 | **NOT COVERED** |
-| R6 | 0 | **NOT COVERED** |
+| R5c | 10 | covered |
+| R5d | 3 | covered |
+| R5e | 1 | covered |
+| R5f | 9 | covered |
+| R5g | 8 | covered |
+| R6 | 2 | covered |
 | R7 | 0 | **NOT COVERED** |
 | R7a | 0 | **NOT COVERED** |
 | R8 | 0 | **NOT COVERED** |
 | R9 | 0 | **NOT COVERED** |
 | R10 | 0 | **NOT COVERED** |
-| R10a | 0 | **NOT COVERED** |
+| R10a | 9 | covered |
 | R11 | 0 | **NOT COVERED** |
 | R12 | 0 | **NOT COVERED** |
 | R13 | 0 | **NOT COVERED** |
@@ -46,21 +48,23 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 | Invariant | Tests | Status |
 |---|---|---|
-| 1 | 0 | **NOT COVERED** |
+| 1 | 2 | covered |
 | 2 | 0 | **NOT COVERED** |
 | 3 | 0 | **NOT COVERED** |
 | 4 | 0 | **NOT COVERED** |
 | 4a | 0 | **NOT COVERED** |
 | 5 | 1 | covered |
 | 6 | 0 | **NOT COVERED** |
-| 7 | 0 | **NOT COVERED** |
-| 8 | 0 | **NOT COVERED** |
-| 9 | 0 | **NOT COVERED** |
+| 7 | 1 | covered |
+| 8 | 1 | covered |
+| 9 | 1 | covered |
 | 10 | 0 | **NOT COVERED** |
 | 11 | 2 | covered |
 | 12 | 2 | covered |
 | 13 | 2 | covered |
-| 14 | 1 | covered |
+| 14 | 2 | covered |
+| 15 | 1 | covered |
+| 16 | 1 | covered |
 
 ## Rules → tests
 
@@ -139,11 +143,91 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5b.at-risk.test.ts › R5b — at risk › R5b: zero slack is tight but not at risk (premium out 11:00, in 16:00, 300 min)
 - packages/domain/src/R5b.at-risk.test.ts › R5b — properties › invariant 14 / R5b: atRisk ⇔ a deadline exists and window < estimatedMinutes; atRisk ⇒ tight
 
+### R5c
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: a deferred task keeps departureDate and earliestStart, has plannedDate > departureDate and deferred = true
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: a task that cannot be finished on the next day before its deadline goes to shortfall instead of being deferred
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: a task without a deadline waits until a day with a free housekeeper
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: premium with check-in 15:00 deferred onto its arrival day is tight but not at risk
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: premium with early check-in 14:00 is not deferred onto its arrival day and goes to shortfall
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: the arrival day counts when workdayStart + estimate fits before check-in (stable, 14:30 ≤ 16:00)
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 14 / R5c: at risk ⇔ deadline − windowStart < estimate; a deferred task is never at risk
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 15 / R5c: deferred ⇔ plannedDate > departureDate; departureDate and earliestStart never change
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 8 / R5c: no deferred task is planned past its deadline; a staffed task that cannot meet it is at risk
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival
+
+### R5d
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 7 / R5d: the same tasks in any order give the same plan
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: on Sunday the only free housekeeper goes to the cottage with a same-day arrival (7), not the lowest number (2)
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: on a short day the tasks that can wait longest move first; on a tie the higher cottage number moves
+
+### R5e
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5e — deferred tasks on the new day › R5e: a same-day arrival wins the last housekeeper over a deferred task, which moves on
+
+### R5f
+
+- packages/domain/src/R5f.weekend.test.ts › R5f — properties › invariant 16 / R5f: a task is planned on a Saturday or Sunday only if it cannot wait until the following Monday
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: Monday check-in 14:00 — 14:30 > 14:00, so the task cannot wait and is cleaned on Sunday
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: Monday check-in 14:30 — 10:00 + 4:30 = 14:30 fits, so the task waits until Monday although Sunday has a free housekeeper
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a Sunday task that cannot wait goes to shortfall when nobody works on Sunday, not carried over
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a task that cannot wait until Monday goes to shortfall when nobody is free on Saturday or Sunday
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a task that cannot wait until Monday is cleaned on Saturday when a housekeeper is free
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a task that cannot wait until Monday is cleaned on Sunday when nobody is free on Saturday
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a weekend task without a deadline waits until Monday even when a housekeeper is free
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: on Sunday only the task that cannot wait (7) is cleaned and needed; 2, 4, 8 are carried to Monday
+
+### R5g
+
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a carried task that can no longer be finished on the first day goes to shortfall as DEADLINE_PASSED
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a carried task that departs on or after the first day of the week is rejected as invalid input
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a carried-over task's tight / at-risk flags are recalculated for the next week's first day
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a task still waiting after the week's last day is carried over, not shortfall
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a task that cannot be finished on the next week's first day goes to shortfall, not carried over
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: carried tasks are candidates on the next week's first day and compete by the same priority
+- packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: two carried tasks for the same cottage and departure date are rejected as invalid input, listing them
+- packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
+
+### R6
+
+- packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
+- packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike
+
+### R10a
+
+- packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day given twice in the headcount is rejected, listing the date
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day with zero staff lists its tasks that cannot wait as shortfall
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a headcount with missing dates is rejected, listing the dates — never treated as 0
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a negative or non-integer headcount is rejected, listing the dates
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a staffed task stays on its departure day, not deferred
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a task departing outside the planning week is rejected, not silently dropped
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: on a short day the tasks that cannot be staffed are listed as shortfall, never dropped
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: with enough staff there is no shortfall and every day of the week is reported
+
 ## Invariants → tests
+
+### Invariant 1
+
+- packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount
+- packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
 
 ### Invariant 5
 
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — properties › invariant 5 / R3: no task exists for a non-schedulable or non-existent cottage
+
+### Invariant 7
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 7 / R5d: the same tasks in any order give the same plan
+
+### Invariant 8
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 8 / R5c: no deferred task is planned past its deadline; a staffed task that cannot meet it is at risk
+
+### Invariant 9
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival
 
 ### Invariant 11
 
@@ -163,6 +247,15 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### Invariant 14
 
 - packages/domain/src/R5b.at-risk.test.ts › R5b — properties › invariant 14 / R5b: atRisk ⇔ a deadline exists and window < estimatedMinutes; atRisk ⇒ tight
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 14 / R5c: at risk ⇔ deadline − windowStart < estimate; a deferred task is never at risk
+
+### Invariant 15
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 15 / R5c: deferred ⇔ plannedDate > departureDate; departureDate and earliestStart never change
+
+### Invariant 16
+
+- packages/domain/src/R5f.weekend.test.ts › R5f — properties › invariant 16 / R5f: a task is planned on a Saturday or Sunday only if it cannot wait until the following Monday
 
 ## Unknown references
 

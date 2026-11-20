@@ -1,0 +1,217 @@
+import type { CleaningTask } from './cleaning-task.js';
+import { atTime, minutesBetween } from './local-date-time.js';
+import { addDays, followingMonday, isWeekend, type LocalDate } from './local-date.js';
+import {
+  DAYS_IN_PLANNING_WEEK,
+  contains,
+  daysOf,
+  lastDayOf,
+  type PlanningWeek,
+} from './planning-week.js';
+import type { SchedulingConfig } from './scheduling-config.js';
+
+/** R10a: housekeepers available on one date — input to planning, one entry for every day of the week. */
+export interface Headcount {
+  readonly date: LocalDate;
+  readonly available: number;
+}
+
+/** R10a: staff needed (Σ requiredCrewSize of the day's candidates) vs available. */
+export interface DayLoad {
+  readonly date: LocalDate;
+  readonly needed: number;
+  readonly available: number;
+}
+
+/** NO_STAFF: no housekeeper on any day it still fitted. DEADLINE_PASSED: a carried task that no longer fits (R5g). */
+export type ShortfallReason = 'NO_STAFF' | 'DEADLINE_PASSED';
+
+/** R10a: a task that cannot be staffed — reported, never dropped. */
+export interface Shortfall {
+  readonly task: CleaningTask;
+  readonly reason: ShortfallReason;
+  /** NO_STAFF: the last day the task could still have been cleaned. */
+  readonly lastPossibleDate?: LocalDate;
+}
+
+export interface WeekPlan {
+  /** Staffed tasks, in planned-date order. */
+  readonly tasks: readonly CleaningTask[];
+  /** One entry per day of the planning week. */
+  readonly days: readonly DayLoad[];
+  readonly shortfall: readonly Shortfall[];
+  /** R5g: still waiting after the week's last day, planned for the next week's first day → next week's input. */
+  readonly carriedOver: readonly CleaningTask[];
+}
+
+export interface PlanWeekInput {
+  /** From deriveCleaningTasks for the same week. */
+  readonly tasks: readonly CleaningTask[];
+  readonly headcount: readonly Headcount[];
+  readonly week: PlanningWeek;
+  readonly config: SchedulingConfig;
+  /** R5g: the previous week's `carriedOver`; each must have departed before this week starts. */
+  readonly carriedOver?: readonly CleaningTask[];
+}
+
+/**
+ * Plans the week day by day from each day's headcount — R5c–R5g, R10a, invariants 1, 8, 9, 14, 15, 16.
+ * A day's candidates (that day's departures + tasks still waiting, incl. carried-in ones) are staffed in priority
+ * order (R5d); the rest wait for the next day while they still fit before their deadline, otherwise go to shortfall.
+ * On Saturday and Sunday only tasks that cannot wait until Monday are staffed (R5f).
+ * After the last day, waiting tasks are carried over to the next week (R5g).
+ * Throws on invalid input (headcount missing / duplicated / not an integer ≥ 0, task departing outside the week,
+ * carried task not departed before the week or given twice).
+ */
+export function planWeek({
+  tasks,
+  headcount,
+  week,
+  config,
+  carriedOver = [],
+}: PlanWeekInput): WeekPlan {
+  const availableOn = validHeadcount(headcount, week);
+  const outside = tasks.filter((t) => !contains(week, t.departureDate));
+  if (outside.length > 0) {
+    throw new Error(
+      `Invalid tasks: departing outside the planning week: ${outside.map(describe).join(', ')}`,
+    );
+  }
+  validCarriedOver(carriedOver, week);
+
+  const staffed: CleaningTask[] = [];
+  const shortfall: Shortfall[] = [];
+  const days: DayLoad[] = [];
+  const carried: CleaningTask[] = [];
+  const nextWeekStart = addDays(week.start, DAYS_IN_PLANNING_WEEK); // R5g
+  const lastDay = lastDayOf(week);
+
+  // R5g: carried-in tasks are candidates from the first day, unless they no longer fit there.
+  let waiting: CleaningTask[] = [];
+  for (const task of carriedOver) {
+    if (fitsOn(task, week.start, config)) waiting.push(task);
+    else shortfall.push({ task, reason: 'DEADLINE_PASSED' });
+  }
+
+  for (const date of daysOf(week)) {
+    const available = availableOn.get(date) ?? 0; // never 0 by default: validHeadcount has checked every day
+    const candidates = [...waiting, ...tasks.filter((t) => t.departureDate === date)].sort(
+      byPriority,
+    );
+    const next = date === lastDay ? nextWeekStart : addDays(date, 1);
+    waiting = [];
+    // R5f: on a weekend day only tasks that cannot wait until Monday are staffed (and needed).
+    const weekend = isWeekend(date);
+    const monday = followingMonday(date);
+    const needsToday = (task: CleaningTask): boolean => !weekend || !fitsOn(task, monday, config);
+
+    let free = available;
+    for (const task of candidates) {
+      if (needsToday(task) && task.requiredCrewSize <= free) {
+        staffed.push(plannedOn(task, date, config));
+        free -= task.requiredCrewSize;
+      } else if (!fitsOn(task, next, config)) {
+        shortfall.push({ task, reason: 'NO_STAFF', lastPossibleDate: date });
+      } else if (next === nextWeekStart) {
+        carried.push(plannedOn(task, next, config)); // R5g
+      } else {
+        waiting.push(task); // R5c / R5f: deferred, still finishes before the next arrival
+      }
+    }
+    days.push({ date, needed: sumCrew(candidates.filter(needsToday)), available });
+  }
+
+  return { tasks: staffed, days, shortfall, carriedOver: carried };
+}
+
+/**
+ * R5d: earliest deadline first, no deadline last; ties by cottage number (lowest first), then departure date.
+ * Total order on distinct tasks, so the input order never changes the plan (invariant 7).
+ */
+function byPriority(a: CleaningTask, b: CleaningTask): number {
+  if (a.deadline !== b.deadline) {
+    if (a.deadline === undefined) return 1;
+    if (b.deadline === undefined) return -1;
+    return a.deadline < b.deadline ? -1 : 1;
+  }
+  if (a.cottageNumber !== b.cottageNumber) return a.cottageNumber - b.cottageNumber;
+  return a.departureDate < b.departureDate ? -1 : a.departureDate > b.departureDate ? 1 : 0;
+}
+
+/** R5c: a task can be cleaned on a later `day` if it has no deadline or workdayStart + estimate ≤ deadline. */
+function fitsOn(task: CleaningTask, day: LocalDate, config: SchedulingConfig): boolean {
+  return (
+    task.deadline === undefined ||
+    minutesBetween(atTime(day, config.workdayStart), task.deadline) >= task.estimatedMinutes
+  );
+}
+
+/**
+ * The task as cleaned on `date`. On its departure day it is unchanged; later it is deferred and its
+ * tight / at-risk flags are recalculated from `date + workdayStart` (R5c, invariant 14).
+ * departureDate and earliestStart never change (invariant 15).
+ */
+function plannedOn(task: CleaningTask, date: LocalDate, config: SchedulingConfig): CleaningTask {
+  if (date === task.departureDate) return task;
+  const window =
+    task.deadline === undefined
+      ? undefined
+      : minutesBetween(atTime(date, config.workdayStart), task.deadline);
+  return {
+    ...task,
+    plannedDate: date,
+    deferred: true,
+    tight: window !== undefined && window - task.estimatedMinutes <= 0, // R5
+    atRisk: window !== undefined && window < task.estimatedMinutes, // R5b
+  };
+}
+
+/** R10a: every day of the week exactly once, an integer ≥ 0; otherwise the input is rejected, listing the dates. */
+function validHeadcount(
+  headcount: readonly Headcount[],
+  week: PlanningWeek,
+): ReadonlyMap<LocalDate, number> {
+  const inWeek = headcount.filter((h) => contains(week, h.date));
+  const byDate = new Map(inWeek.map((h) => [h.date, h.available]));
+
+  const days = daysOf(week);
+  const missing = days.filter((d) => !byDate.has(d));
+  const duplicated = days.filter((d) => inWeek.filter((h) => h.date === d).length > 1);
+  const invalid = inWeek
+    .filter((h) => !Number.isInteger(h.available) || h.available < 0)
+    .map((h) => h.date);
+
+  const problems = [
+    missing.length > 0 ? `missing ${missing.join(', ')}` : '',
+    duplicated.length > 0 ? `duplicated ${duplicated.join(', ')}` : '',
+    invalid.length > 0 ? `not an integer ≥ 0 on ${invalid.join(', ')}` : '',
+  ].filter((p) => p !== '');
+  if (problems.length > 0) throw new Error(`Invalid headcount: ${problems.join('; ')}`);
+
+  return byDate;
+}
+
+/** R5g: carried tasks departed before the week starts, at most one per cottage and departure date (invariant 11). */
+function validCarriedOver(carriedOver: readonly CleaningTask[], week: PlanningWeek): void {
+  const notBefore = carriedOver.filter((t) => t.departureDate >= week.start);
+  const seen = new Set<string>();
+  const duplicated = carriedOver.filter((t) => {
+    const key = describe(t);
+    if (seen.has(key)) return true;
+    seen.add(key);
+    return false;
+  });
+  const problems = [
+    notBefore.length > 0
+      ? `not departed before ${week.start}: ${notBefore.map(describe).join(', ')}`
+      : '',
+    duplicated.length > 0 ? `duplicated ${duplicated.map(describe).join(', ')}` : '',
+  ].filter((p) => p !== '');
+  if (problems.length > 0) throw new Error(`Invalid carried tasks: ${problems.join('; ')}`);
+}
+
+const describe = (t: CleaningTask): string =>
+  `cottage ${String(t.cottageNumber)} on ${t.departureDate}`;
+
+const sumCrew = (tasks: readonly CleaningTask[]): number =>
+  tasks.reduce((sum, t) => sum + t.requiredCrewSize, 0);

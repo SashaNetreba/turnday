@@ -7,6 +7,15 @@ export { addDays, localDate, type LocalDate } from './local-date.js';
 export { atTime, minutesBetween, type LocalDateTime } from './local-date-time.js';
 export { localTime, type LocalTime } from './local-time.js';
 export {
+  planWeek,
+  type DayLoad,
+  type Headcount,
+  type PlanWeekInput,
+  type Shortfall,
+  type ShortfallReason,
+  type WeekPlan,
+} from './plan-week.js';
+export {
   DAYS_IN_PLANNING_WEEK,
   contains,
   daysOf,
