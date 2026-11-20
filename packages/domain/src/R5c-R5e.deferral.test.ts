@@ -2,19 +2,17 @@ import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
 import type { Booking, CleaningTask, Headcount, PlanningWeek, WeekPlan } from './index.js';
-import { addDays, deriveCleaningTasks, localDate, localTime, planWeek } from './index.js';
+import { addDays, deriveCleaningTasks, localDate, planWeek } from './index.js';
 import {
-  booking,
-  bookingArb,
-  headcountArb,
+  canWaitUntilMonday,
   headcountFor,
+  isWeekendDay,
   lastStay,
+  planningScenarioArb,
   seedConfig,
   seedCottages,
   stay,
-  timeArb,
   turnover,
-  weekArb,
 } from './test-fixtures.js';
 
 const cottages = seedCottages();
@@ -173,51 +171,6 @@ describe('R5e — deferred tasks on the new day', () => {
 });
 
 describe('R5c–R5e — properties', () => {
-  /** Broad: random bookings around the week, incl. invalid, cancelled and unknown cottages. */
-  const randomBookingsArb = fc.tuple(fc.array(bookingArb(), { maxLength: 40 }), weekArb);
-
-  /**
-   * Focused on deferral: departures in the week whose next guest arrives 0–3 days later at a random check-in
-   * time, so short days and tight next-day / arrival-day windows are common.
-   */
-  const deferralBookingsArb = weekArb.chain((w) =>
-    fc
-      .array(
-        fc.record({
-          cottage: fc.constantFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15),
-          // Last day weighted up: overflow there is carried over (R5g), across the week boundary.
-          outOffset: fc.oneof(fc.integer({ min: 0, max: 6 }), fc.constant(6)),
-          gap: fc.option(fc.integer({ min: 0, max: 3 }), { nil: undefined }),
-          // 14:30 / 15:00 = zero slack on the arrival day for stable / premium (workdayStart 10:00).
-          checkin: fc.option(
-            fc.oneof(timeArb, fc.constantFrom(localTime('14:30'), localTime('15:00'))),
-            { nil: undefined },
-          ),
-        }),
-        { maxLength: 12 },
-      )
-      .map((departures): [Booking[], PlanningWeek] => [
-        departures.flatMap(({ cottage, outOffset, gap, checkin }, i) => {
-          const out = addDays(w.start, outOffset);
-          const leaving = booking(`O${String(i)}`, cottage, addDays(out, -3), out);
-          if (gap === undefined) return [leaving];
-          const arrival = addDays(out, gap);
-          return [
-            leaving,
-            {
-              ...booking(`I${String(i)}`, cottage, arrival, addDays(arrival, 9)),
-              ...(checkin === undefined ? {} : { checkinTime: checkin }),
-            },
-          ];
-        }),
-        w,
-      ]),
-  );
-
-  const scenarioArb = fc
-    .oneof(randomBookingsArb, deferralBookingsArb)
-    .chain(([bookings, w]) => fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2)));
-
   const run = (bookings: readonly Booking[], w: PlanningWeek, headcount: Headcount[]) => {
     const tasks = deriveCleaningTasks(bookings, cottages, w, config);
     return { tasks, p: planWeek({ tasks, headcount, week: w, config }) };
@@ -231,7 +184,7 @@ describe('R5c–R5e — properties', () => {
 
   it('invariant 8 / R5c: no deferred task is planned past its deadline; a staffed task that cannot meet it is at risk', () => {
     fc.assert(
-      fc.property(scenarioArb, ([bookings, w, headcount]) => {
+      fc.property(planningScenarioArb, ([bookings, w, headcount]) => {
         for (const t of run(bookings, w, headcount).p.tasks) {
           if (t.deadline === undefined) continue;
           const fits = minutes(windowStart(t), t.deadline) >= t.estimatedMinutes;
@@ -242,18 +195,21 @@ describe('R5c–R5e — properties', () => {
     );
   });
 
-  it('invariant 9 / R5c: a task is deferred only past full days, and never with a same-day arrival', () => {
+  it('invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival', () => {
     fc.assert(
-      fc.property(scenarioArb, ([bookings, w, headcount]) => {
+      fc.property(planningScenarioArb, ([bookings, w, headcount]) => {
         const { p } = run(bookings, w, headcount);
         const availableOn = new Map(headcount.map((h) => [h.date, h.available]));
-        for (const t of p.tasks.filter((x) => x.deferred)) {
+        // Carried-over tasks (R5g) are deferred too: every day from departure to the week's last day.
+        for (const t of [...p.tasks, ...p.carriedOver].filter((x) => x.deferred)) {
           expect(t.deadline?.slice(0, 10)).not.toBe(t.departureDate);
           for (let d = t.departureDate; d < t.plannedDate; d = addDays(d, 1)) {
             const used = p.tasks
               .filter((x) => x.plannedDate === d)
               .reduce((sum, x) => sum + x.requiredCrewSize, 0);
-            expect(used + t.requiredCrewSize).toBeGreaterThan(availableOn.get(d) ?? 0);
+            const full = used + t.requiredCrewSize > (availableOn.get(d) ?? 0);
+            const weekendWait = isWeekendDay(d) && canWaitUntilMonday(t, d, config); // R5f
+            expect(full || weekendWait).toBe(true);
           }
         }
       }),
@@ -262,7 +218,7 @@ describe('R5c–R5e — properties', () => {
 
   it('invariant 14 / R5c: at risk ⇔ deadline − windowStart < estimate; a deferred task is never at risk', () => {
     fc.assert(
-      fc.property(scenarioArb, ([bookings, w, headcount]) => {
+      fc.property(planningScenarioArb, ([bookings, w, headcount]) => {
         const { p } = run(bookings, w, headcount);
         // Carried-over tasks (R5g) are deferred to the next week's first day: same rule.
         for (const t of [...p.tasks, ...p.carriedOver]) {
@@ -277,7 +233,7 @@ describe('R5c–R5e — properties', () => {
 
   it('invariant 15 / R5c: deferred ⇔ plannedDate > departureDate; departureDate and earliestStart never change', () => {
     fc.assert(
-      fc.property(scenarioArb, ([bookings, w, headcount]) => {
+      fc.property(planningScenarioArb, ([bookings, w, headcount]) => {
         const { tasks, p } = run(bookings, w, headcount);
         const original = new Map(tasks.map((t) => [key(t), t]));
         for (const t of p.tasks) {
@@ -292,7 +248,7 @@ describe('R5c–R5e — properties', () => {
   it('invariant 7 / R5d: the same tasks in any order give the same plan', () => {
     fc.assert(
       fc.property(
-        scenarioArb.chain(([bookings, w, headcount]) =>
+        planningScenarioArb.chain(([bookings, w, headcount]) =>
           fc.tuple(
             fc.constant(bookings),
             fc.constant(w),

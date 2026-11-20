@@ -1,6 +1,6 @@
 import type { CleaningTask } from './cleaning-task.js';
 import { atTime, minutesBetween } from './local-date-time.js';
-import { addDays, type LocalDate } from './local-date.js';
+import { addDays, followingMonday, isWeekend, type LocalDate } from './local-date.js';
 import {
   DAYS_IN_PLANNING_WEEK,
   contains,
@@ -55,9 +55,10 @@ export interface PlanWeekInput {
 }
 
 /**
- * Plans the week day by day from each day's headcount — R5c–R5e, R5g, R10a, invariants 1, 8, 9, 14, 15.
+ * Plans the week day by day from each day's headcount — R5c–R5g, R10a, invariants 1, 8, 9, 14, 15, 16.
  * A day's candidates (that day's departures + tasks still waiting, incl. carried-in ones) are staffed in priority
  * order (R5d); the rest wait for the next day while they still fit before their deadline, otherwise go to shortfall.
+ * On Saturday and Sunday only tasks that cannot wait until Monday are staffed (R5f).
  * After the last day, waiting tasks are carried over to the next week (R5g).
  * Throws on invalid input (headcount missing / duplicated / not an integer ≥ 0, task departing outside the week,
  * carried task not departed before the week or given twice).
@@ -99,10 +100,14 @@ export function planWeek({
     );
     const next = date === lastDay ? nextWeekStart : addDays(date, 1);
     waiting = [];
+    // R5f: on a weekend day only tasks that cannot wait until Monday are staffed (and needed).
+    const weekend = isWeekend(date);
+    const monday = followingMonday(date);
+    const needsToday = (task: CleaningTask): boolean => !weekend || !fitsOn(task, monday, config);
 
     let free = available;
     for (const task of candidates) {
-      if (task.requiredCrewSize <= free) {
+      if (needsToday(task) && task.requiredCrewSize <= free) {
         staffed.push(plannedOn(task, date, config));
         free -= task.requiredCrewSize;
       } else if (!fitsOn(task, next, config)) {
@@ -110,10 +115,10 @@ export function planWeek({
       } else if (next === nextWeekStart) {
         carried.push(plannedOn(task, next, config)); // R5g
       } else {
-        waiting.push(task); // R5c: deferred, still finishes before the next arrival
+        waiting.push(task); // R5c / R5f: deferred, still finishes before the next arrival
       }
     }
-    days.push({ date, needed: sumCrew(candidates), available });
+    days.push({ date, needed: sumCrew(candidates.filter(needsToday)), available });
   }
 
   return { tasks: staffed, days, shortfall, carriedOver: carried };

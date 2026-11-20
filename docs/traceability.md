@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 13 of 24 covered
-- Invariants: 10 of 17 covered
+- Rules: 14 of 24 covered
+- Invariants: 11 of 17 covered
 
 ## NOT COVERED
 
-- Rules: R5f, R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
-- Invariants: 2, 3, 4, 4a, 6, 10, 16
+- Rules: R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
+- Invariants: 2, 3, 4, 4a, 6, 10
 
 ## Rules
 
@@ -29,7 +29,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5c | 10 | covered |
 | R5d | 3 | covered |
 | R5e | 1 | covered |
-| R5f | 0 | **NOT COVERED** |
+| R5f | 9 | covered |
 | R5g | 8 | covered |
 | R6 | 2 | covered |
 | R7 | 0 | **NOT COVERED** |
@@ -64,7 +64,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 13 | 2 | covered |
 | 14 | 2 | covered |
 | 15 | 1 | covered |
-| 16 | 0 | **NOT COVERED** |
+| 16 | 1 | covered |
 
 ## Rules → tests
 
@@ -154,7 +154,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 14 / R5c: at risk ⇔ deadline − windowStart < estimate; a deferred task is never at risk
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 15 / R5c: deferred ⇔ plannedDate > departureDate; departureDate and earliestStart never change
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 8 / R5c: no deferred task is planned past its deadline; a staffed task that cannot meet it is at risk
-- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days, and never with a same-day arrival
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival
 
 ### R5d
 
@@ -165,6 +165,18 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### R5e
 
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5e — deferred tasks on the new day › R5e: a same-day arrival wins the last housekeeper over a deferred task, which moves on
+
+### R5f
+
+- packages/domain/src/R5f.weekend.test.ts › R5f — properties › invariant 16 / R5f: a task is planned on a Saturday or Sunday only if it cannot wait until the following Monday
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: Monday check-in 14:00 — 14:30 > 14:00, so the task cannot wait and is cleaned on Sunday
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: Monday check-in 14:30 — 10:00 + 4:30 = 14:30 fits, so the task waits until Monday although Sunday has a free housekeeper
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a Sunday task that cannot wait goes to shortfall when nobody works on Sunday, not carried over
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a task that cannot wait until Monday goes to shortfall when nobody is free on Saturday or Sunday
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a task that cannot wait until Monday is cleaned on Saturday when a housekeeper is free
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a task that cannot wait until Monday is cleaned on Sunday when nobody is free on Saturday
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a weekend task without a deadline waits until Monday even when a housekeeper is free
+- packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: on Sunday only the task that cannot wait (7) is cleaned and needed; 2, 4, 8 are carried to Monday
 
 ### R5g
 
@@ -215,7 +227,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ### Invariant 9
 
-- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days, and never with a same-day arrival
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival
 
 ### Invariant 11
 
@@ -240,6 +252,10 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### Invariant 15
 
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 15 / R5c: deferred ⇔ plannedDate > departureDate; departureDate and earliestStart never change
+
+### Invariant 16
+
+- packages/domain/src/R5f.weekend.test.ts › R5f — properties › invariant 16 / R5f: a task is planned on a Saturday or Sunday only if it cannot wait until the following Monday
 
 ## Unknown references
 
