@@ -118,6 +118,21 @@ describe('deriveCleaningTasks — examples', () => {
     ]);
   });
 
+  it('R1: among duplicates the booking with the lowest externalRef is kept as bookingRef', () => {
+    const tasks = deriveCleaningTasks(
+      [
+        booking('B/1', 5, '2026-11-15', '2026-11-18'),
+        booking('A/1', 5, '2026-11-14', '2026-11-18'), // lowest, deliberately not first
+        booking('C/1', 5, '2026-11-16', '2026-11-18'),
+      ],
+      cottages,
+      week,
+      config,
+    );
+
+    expect(tasks.map((t) => t.bookingRef)).toEqual(['A/1']);
+  });
+
   it('R2: does not clean a stayover (booking spans the day without departing)', () => {
     const tasks = deriveCleaningTasks(
       [booking('long-stay', 1, '2026-11-14', '2026-11-25')],

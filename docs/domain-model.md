@@ -75,13 +75,14 @@ Availability                  # entered by the manager only
   available: boolean          # days off, holidays, sickness
 
 CleaningTask                  # derived from bookings, never entered manually
+  bookingRef                  # Booking.externalRef of the departing booking (lowest among duplicates, R1)
   cottageNumber
   kind: DEPARTURE
   departureDate               # when the guest leaves
   plannedDate                 # when it is cleaned (= departureDate, or later if deferred)
   deferred: boolean
   estimatedMinutes: int
-  requiredCrewSize: 1 | 2
+  requiredCrewSize: 1 | 2     # added with R6, not implemented yet
   earliestStart: datetime     # local wall-clock YYYY-MM-DDTHH:MM: departure date + checkout time (incl. late checkout)
   deadline?: datetime         # local wall-clock: next arrival into this cottage + check-in time (incl. early check-in);
                               # empty if no next arrival is known
@@ -133,6 +134,8 @@ TimeEntry
   - The **planning week** is 7 consecutive days starting on a given date (start and start + 6 inclusive); it is not tied to a weekday.
   - A booking with `departureDate <= arrivalDate` is **invalid** and is skipped.
   - Several bookings for the same cottage with the same `departureDate` produce **one** task.
+    Among duplicates the booking with the **lowest `externalRef`** is kept (plain string order); it becomes the
+    task's `bookingRef`, independent of input order.
 - **R2.** Empty cottages (no departure that day) are **not** cleaned. Occupied cottages (stayovers) are **not** cleaned either.
 - **R3.** Non-schedulable cottages never produce tasks, even if a booking exists.
 - **R4.** Estimated effort: `STABLE` ≈ 4–4.5 h, `PREMIUM` ≈ 5 h. Planning uses the upper bound — every task gets
@@ -196,7 +199,7 @@ TimeEntry
 ### Capacity
 - **R9.** A housekeeper takes at most **one** cleaning task per day. This follows from R4 + R5: the earliest start is 10:00, one clean takes ≥ 4 h, so a second clean could not finish by 16:00.
 - **R10.** A housekeeper is never scheduled on a day they are unavailable.
-- ⇒ **Staff needed on a day** = Σ crew sizes of that day's tasks.
+- **R10a. Shortfall.** **Staff needed on a day** = Σ crew sizes of that day's tasks.
   If staff needed > staff available, the schedule is produced with an explicit **shortfall warning**, never silently.
 
 ### Fairness
