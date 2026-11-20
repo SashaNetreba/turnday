@@ -6,7 +6,8 @@ description: Write an Architecture Decision Record in docs/adr/. Use when a sign
 # Write an ADR
 
 1. Find the highest number in `docs/adr/` and use the next one, zero-padded: `0003-short-kebab-title.md`.
-2. Use exactly this structure, short and concrete:
+2. Use exactly this structure, short and concrete. An ADR records the decision, its context, the alternatives and the
+   trade-offs — not function signatures or parameter lists; those live in the code.
 
 ```
 # <number>. <Title>
