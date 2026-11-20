@@ -24,6 +24,7 @@ const DOC = `# Domain model
 - **R5.** Time window. Precedence: manager override (R5a, \`TimeOverride\`).
 - **R5a. Late checkout / early check-in.** Overrides.
 - **R5b. At risk.** Short window.
+- **R5f. Weekend.** Days off.
 - **R10.** Availability.
   1. a numbered sub-item inside a rule is not an invariant
 
@@ -60,7 +61,31 @@ function ids(rows: { id: string; tests: string[] }[]): Record<string, number> {
 
 describe('parseDomainModel', () => {
   it('reads rule IDs only from bullet headers in the Business rules section', () => {
-    expect(model.rules).toEqual(['R1', 'R5', 'R5a', 'R5b', 'R10']);
+    expect(model.rules).toEqual(['R1', 'R5', 'R5a', 'R5b', 'R5f', 'R10']);
+  });
+
+  it('reads rule short names from the bold label; rules without a label have none', () => {
+    expect(model.labels).toEqual({
+      R5a: 'Late checkout / early check-in',
+      R5b: 'At risk',
+      R5f: 'Weekend',
+    });
+  });
+
+  it('a bold label without a closing period still yields the rule and its label', () => {
+    const doc = [
+      '## 4. Business rules',
+      '',
+      '- **R1. With period.** Text.',
+      '- **R2. Without period** is the subject of the sentence.',
+      '',
+      '## 6. Invariants',
+      '',
+      '1. Something.',
+    ].join('\n');
+    const parsed = parseDomainModel(doc);
+    expect(parsed.rules).toEqual(['R1', 'R2']);
+    expect(parsed.labels).toEqual({ R1: 'With period', R2: 'Without period' });
   });
 
   it('reads invariant IDs only from the Invariants section, including letter suffixes (4a)', () => {
@@ -80,6 +105,13 @@ describe('parseDomainModel', () => {
     );
     expect(real.invariants).toEqual(expect.arrayContaining(['1', '4a', '14']));
     expect(new Set(real.rules).size).toBe(real.rules.length);
+    expect(real.labels).toMatchObject({
+      R5e: 'Deferred tasks on the new day',
+      R5g: 'Carry-over',
+      R9: 'One clean per housekeeper per day',
+      R10a: 'Shortfall',
+    });
+    expect(real.rules.filter((id) => real.labels[id] === undefined)).toEqual([]);
   });
 });
 
@@ -128,7 +160,7 @@ describe('extractRefs', () => {
 
 describe('buildMatrix', () => {
   it('a test covering several rules counts for each of them', () => {
-    const m = buildMatrix(model, [test('R1 R5 R5a: sample week')]);
+    const m = buildMatrix(model, [test('R1 / R5 / R5a: sample week')]);
     expect(ids(m.rules)).toMatchObject({ R1: 1, R5: 1, R5a: 1, R5b: 0 });
   });
 
@@ -147,18 +179,52 @@ describe('buildMatrix', () => {
     expect(m.nonConforming).toEqual([]);
   });
 
-  it('a test without IDs takes them from its nearest describe block and is flagged as non-conforming', () => {
+  it('IDs in describe titles never count: a test without IDs in its own title is untraced', () => {
     const m = buildMatrix(model, [
       test('collapses duplicates', ['R1 — derive', 'invariant 11 — properties']),
     ]);
     expect(ids(m.rules)).toMatchObject({ R1: 0 });
-    expect(ids(m.invariants)).toMatchObject({ '11': 1 });
-    expect(m.nonConforming).toEqual([
-      {
-        test: 'a.test.ts › R1 — derive › invariant 11 — properties › collapses duplicates',
-        reason: 'IDs only in describe block',
-      },
+    expect(ids(m.invariants)).toMatchObject({ '11': 0 });
+    expect(m.untraced).toEqual([
+      'a.test.ts › R1 — derive › invariant 11 — properties › collapses duplicates',
     ]);
+    expect(m.nonConforming).toEqual([]);
+  });
+
+  it('only IDs before the first colon count: an ID mentioned after the colon gives no coverage', () => {
+    const m = buildMatrix(model, [test('R5: window (R5a overrides it later, see invariant 11)')]);
+    expect(ids(m.rules)).toMatchObject({ R5: 1, R5a: 0 });
+    expect(ids(m.invariants)).toMatchObject({ '11': 0 });
+    expect(m.nonConforming).toEqual([]);
+  });
+
+  it('every ID in the prefix counts, rules and invariants alike', () => {
+    const m = buildMatrix(model, [test('invariant 11 / R5a: override')]);
+    expect(ids(m.rules)).toMatchObject({ R5a: 1 });
+    expect(ids(m.invariants)).toMatchObject({ '11': 1 });
+  });
+
+  it('a title with IDs but no colon credits nothing and is flagged as non-conforming', () => {
+    const m = buildMatrix(model, [test('R1 derives a task')]);
+    expect(ids(m.rules)).toMatchObject({ R1: 0 });
+    expect(m.untraced).toEqual(['a.test.ts › R1 derives a task']);
+    expect(m.nonConforming).toEqual([
+      { test: 'a.test.ts › R1 derives a task', reason: 'IDs but no colon prefix' },
+    ]);
+  });
+
+  it('a prefix that is not only IDs credits nothing: the first colon may be inside a time', () => {
+    const m = buildMatrix(model, [test('R5f Monday check-in 14:30 waits')]);
+    expect(ids(m.rules)).toMatchObject({ R5f: 0 });
+    expect(m.nonConforming).toEqual([
+      { test: 'a.test.ts › R5f Monday check-in 14:30 waits', reason: 'prefix is not only IDs' },
+    ]);
+  });
+
+  it('a time after the real colon is fine', () => {
+    const m = buildMatrix(model, [test('R5: window 10:00–16:00')]);
+    expect(ids(m.rules)).toMatchObject({ R5: 1 });
+    expect(m.nonConforming).toEqual([]);
   });
 
   it('skipped, pending, todo and failed tests are not counted, and are listed as excluded', () => {
@@ -190,7 +256,7 @@ describe('buildMatrix', () => {
 
   it('NOT COVERED does not fail the run; a clean matrix exits 0', () => {
     const m = buildMatrix(model, [test('R1: only one rule covered')]);
-    expect(m.rules.filter((r) => r.tests.length === 0)).toHaveLength(4);
+    expect(m.rules.filter((r) => r.tests.length === 0)).toHaveLength(5);
     expect(exitCode(m)).toBe(0);
   });
 
@@ -224,6 +290,12 @@ describe('ordering and stable output', () => {
     expect(['11', '4a', '1', '4'].sort(compareIds)).toEqual(['1', '4', '4a', '11']);
   });
 
+  it('Rules → tests headings show the short name next to the ID', () => {
+    const md = renderMarkdown(buildMatrix(model, [test('R5a: x'), test('R1: y')]));
+    expect(md).toContain('\n### R5a Late checkout / early check-in\n');
+    expect(md).toContain('\n### R1\n');
+  });
+
   it('the same tests in a different order render byte-identical markdown', () => {
     const tests = [
       test('R5: b', [], 'passed', 'z.test.ts'),
@@ -241,7 +313,8 @@ describe('ordering and stable output', () => {
 
   it('marks uncovered rules and invariants as NOT COVERED and contains no timestamps', () => {
     const md = renderMarkdown(buildMatrix(model, [test('R1: x')]));
-    expect(md).toMatch(/\| R5a \| 0 \| \*\*NOT COVERED\*\* \|/);
+    expect(md).toMatch(/\| R5a Late checkout \/ early check-in \| 0 \| \*\*NOT COVERED\*\* \|/);
+    expect(md).toMatch(/\| R1 \| 1 \| covered \|/);
     expect(md).toMatch(/\| 4a \| 0 \| \*\*NOT COVERED\*\* \|/);
     expect(md).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
   });

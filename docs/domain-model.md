@@ -150,18 +150,18 @@ TimeEntry
 ## 4. Business rules
 
 ### Cleaning demand
-- **R1.** A `CleaningTask` is created for every booking whose `departureDate` falls in the planning week
+- **R1. One task per departure.** A `CleaningTask` is created for every booking whose `departureDate` falls in the planning week
   and whose status is not `CANCELLED`.
   - The **planning week** is 7 consecutive days starting on a given date (start and start + 6 inclusive); it is not tied to a weekday.
   - A booking with `departureDate <= arrivalDate` is **invalid** and is skipped.
   - Several bookings for the same cottage with the same `departureDate` produce **one** task.
     Among duplicates the booking with the **lowest `externalRef`** is kept (plain string order); it becomes the
     task's `bookingRef`, independent of input order.
-- **R2.** Empty cottages (no departure that day) are **not** cleaned. Occupied cottages (stayovers) are **not** cleaned either.
-- **R3.** Non-schedulable cottages never produce tasks, even if a booking exists.
-- **R4.** Estimated effort: `STABLE` ≈ 4–4.5 h, `PREMIUM` ≈ 5 h. Planning uses the upper bound — every task gets
+- **R2. No clean without a departure.** Empty cottages (no departure that day) are **not** cleaned. Occupied cottages (stayovers) are **not** cleaned either.
+- **R3. Non-schedulable cottages.** Non-schedulable cottages never produce tasks, even if a booking exists.
+- **R4. Estimated effort.** Estimated effort: `STABLE` ≈ 4–4.5 h, `PREMIUM` ≈ 5 h. Planning uses the upper bound — every task gets
   `estimatedMinutes` from `SchedulingConfig.estimatedMinutes` by cottage type (seed: 270 / 300). Configurable, never hard-coded.
-- **R5.** A task cannot start before the guest's checkout time and must be finished before the **next** guest's check-in.
+- **R5. Time window.** A task cannot start before the guest's checkout time and must be finished before the **next** guest's check-in.
   - `earliestStart = departureDate + (booking.checkoutTime ?? defaultCheckoutTime)` (default 10:00; 11:00 or other times per booking).
   - `deadline = next arrival date + (that booking's checkinTime ?? defaultCheckinTime)` (default 16:00). The **next arrival** is the
     earliest non-cancelled, valid booking for the same cottage with `arrivalDate >= departureDate`. If several arrive that day,
@@ -225,7 +225,7 @@ TimeEntry
   - on a short day the tasks that can wait longest move: no deadline first, then the latest deadline; on a tie the
     higher cottage number moves;
   - when even the tasks that cannot wait don't all fit, the ones with the latest deadline go to shortfall.
-- **R5e. Deferred tasks on the new day** compete with that day's own tasks in the same order (R5d) — no separate
+- **R5e. Deferred tasks on the new day.** Deferred tasks compete with that day's own tasks in the same order (R5d) — no separate
   queue. A deferred task does not jump ahead of a task with an earlier deadline.
   Example: Monday's cottage 3 (next arrival Wednesday 16:00) is deferred to Tuesday. On Tuesday it competes for the last
   housekeeper with cottage 6, which departs Tuesday and has an arrival Tuesday 16:00 → 6 is staffed; 3 moves to
@@ -253,18 +253,18 @@ TimeEntry
   cottage and departure date are not allowed (invariant 11); otherwise the input is invalid.
 
 ### Crew
-- **R6.** Default crew size is 1 (one housekeeper — one cottage), for stable **and** premium. Every task gets
+- **R6. Default crew size.** Default crew size is 1 (one housekeeper — one cottage), for stable **and** premium. Every task gets
   `requiredCrewSize = 1`; R7a and R8 may raise it.
-- **R7.** Premium crew is either:
+- **R7. Premium crew.** Premium crew is either:
   - **one** housekeeper with `premiumMode = SOLO`, or
   - **the two** housekeepers with `premiumMode = PAIR_ONLY`, together.
   A `PAIR_ONLY` housekeeper is never assigned to premium alone or with anyone else. They clean stable cottages normally.
-- **R7a.** The algorithm prefers a solo crew for premium (one person per cottage). The `PAIR_ONLY` pair is used for premium only when no solo-capable housekeeper is free, or for a **tight** task.
-- **R8.** The manager can manually raise any task's crew to 2 (e.g. very dirty) — this is a `manualOverride` and is preserved when the schedule is regenerated.
+- **R7a. Solo preferred for premium.** The algorithm prefers a solo crew for premium (one person per cottage). The `PAIR_ONLY` pair is used for premium only when no solo-capable housekeeper is free, or for a **tight** task.
+- **R8. Manual crew of 2.** The manager can manually raise any task's crew to 2 (e.g. very dirty) — this is a `manualOverride` and is preserved when the schedule is regenerated.
 
 ### Capacity
-- **R9.** A housekeeper takes at most **one** cleaning task per day. This follows from R4 + R5: the earliest start is 10:00, one clean takes ≥ 4 h, so a second clean could not finish by 16:00.
-- **R10.** A housekeeper is never scheduled on a day they are unavailable.
+- **R9. One clean per housekeeper per day.** A housekeeper takes at most **one** cleaning task per day. This follows from R4 + R5: the earliest start is 10:00, one clean takes ≥ 4 h, so a second clean could not finish by 16:00.
+- **R10. Unavailable days.** A housekeeper is never scheduled on a day they are unavailable.
 - **R10a. Shortfall.** Planning takes a **headcount** for every day of the planning week (housekeepers available,
   integer ≥ 0). A missing day, or a negative or non-integer count, makes the input **invalid**: it is rejected
   with the list of affected dates, never treated as 0. A day given twice is invalid too; dates outside the week are
@@ -276,13 +276,13 @@ TimeEntry
   deferred is listed in the **shortfall** report — never silently dropped.
 
 ### Fairness
-- **R11.** Over a week, shifts are distributed as evenly as possible across active housekeepers (difference between most and least loaded ≤ 1 shift where availability allows).
-- **R12.** Weekend shifts follow a **rotation**: the housekeepers with the fewest weekend shifts in the rolling history are picked first; ties broken by longest time since last weekend shift.
+- **R11. Even distribution.** Over a week, shifts are distributed as evenly as possible across active housekeepers (difference between most and least loaded ≤ 1 shift where availability allows).
+- **R12. Weekend rotation.** Weekend shifts follow a **rotation**: the housekeepers with the fewest weekend shifts in the rolling history are picked first; ties broken by longest time since last weekend shift.
 
 ### Time tracking
-- **R13.** A housekeeper can only start a time entry for their own assignment on the current date.
-- **R14.** Only one open time entry per housekeeper at a time.
-- **R15.** Times are stored in UTC and displayed in Europe/London — durations must be correct across BST ↔ GMT changes.
+- **R13. Own assignment, today only.** A housekeeper can only start a time entry for their own assignment on the current date.
+- **R14. One open time entry.** Only one open time entry per housekeeper at a time.
+- **R15. UTC storage.** Times are stored in UTC and displayed in Europe/London — durations must be correct across BST ↔ GMT changes.
 
 ---
 

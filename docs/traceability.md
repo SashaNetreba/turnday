@@ -19,30 +19,30 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 | Rule | Tests | Status |
 |---|---|---|
-| R1 | 9 | covered |
-| R2 | 3 | covered |
-| R3 | 4 | covered |
-| R4 | 3 | covered |
-| R5 | 12 | covered |
-| R5a | 17 | covered |
-| R5b | 6 | covered |
-| R5c | 10 | covered |
-| R5d | 3 | covered |
-| R5e | 1 | covered |
-| R5f | 9 | covered |
-| R5g | 8 | covered |
-| R6 | 2 | covered |
-| R7 | 0 | **NOT COVERED** |
-| R7a | 0 | **NOT COVERED** |
-| R8 | 0 | **NOT COVERED** |
-| R9 | 0 | **NOT COVERED** |
-| R10 | 0 | **NOT COVERED** |
-| R10a | 9 | covered |
-| R11 | 0 | **NOT COVERED** |
-| R12 | 0 | **NOT COVERED** |
-| R13 | 0 | **NOT COVERED** |
-| R14 | 0 | **NOT COVERED** |
-| R15 | 0 | **NOT COVERED** |
+| R1 One task per departure | 9 | covered |
+| R2 No clean without a departure | 3 | covered |
+| R3 Non-schedulable cottages | 4 | covered |
+| R4 Estimated effort | 3 | covered |
+| R5 Time window | 12 | covered |
+| R5a Late checkout / early check-in | 17 | covered |
+| R5b At risk | 6 | covered |
+| R5c Deferral | 10 | covered |
+| R5d Priority | 3 | covered |
+| R5e Deferred tasks on the new day | 1 | covered |
+| R5f Weekend | 9 | covered |
+| R5g Carry-over | 8 | covered |
+| R6 Default crew size | 2 | covered |
+| R7 Premium crew | 0 | **NOT COVERED** |
+| R7a Solo preferred for premium | 0 | **NOT COVERED** |
+| R8 Manual crew of 2 | 0 | **NOT COVERED** |
+| R9 One clean per housekeeper per day | 0 | **NOT COVERED** |
+| R10 Unavailable days | 0 | **NOT COVERED** |
+| R10a Shortfall | 9 | covered |
+| R11 Even distribution | 0 | **NOT COVERED** |
+| R12 Weekend rotation | 0 | **NOT COVERED** |
+| R13 Own assignment, today only | 0 | **NOT COVERED** |
+| R14 One open time entry | 0 | **NOT COVERED** |
+| R15 UTC storage | 0 | **NOT COVERED** |
 
 ## Invariants
 
@@ -68,10 +68,10 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Rules → tests
 
-### R1
+### R1 One task per departure
 
+- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / invariant 11: duplicate bookings for the same cottage and departure date collapse into one task
-- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1/R2/R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: among duplicates the booking with the lowest externalRef is kept as bookingRef
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: creates one task per booking departing in the planning week
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: ignores cancelled bookings
@@ -80,26 +80,26 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — properties › R1: every task departs inside the planning week, from a valid non-cancelled booking
 - packages/domain/src/R4-R5.time-windows.test.ts › R5 — time window and tight flag › R5 / R1: duplicate departures collapse into one task → the latest checkout counts
 
-### R2
+### R2 No clean without a departure
 
-- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1/R2/R3: RezLynx sample week 13–19 Nov 2026
+- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R2: does not clean a stayover (booking spans the day without departing)
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R2: does not clean an empty cottage
 
-### R3
+### R3 Non-schedulable cottages
 
-- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1/R2/R3: RezLynx sample week 13–19 Nov 2026
+- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / R2 / R3: RezLynx sample week 13–19 Nov 2026
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R3: never creates a task for non-existent cottage 13
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R3: never creates a task for non-schedulable cottage 14
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — properties › invariant 5 / R3: no task exists for a non-schedulable or non-existent cottage
 
-### R4
+### R4 Estimated effort
 
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 / R5 — properties › R4: estimatedMinutes always equals the config value for the cottage type
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: a config change (STABLE 240) changes estimatedMinutes without code changes
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: estimatedMinutes comes from the config by cottage type
 
-### R5
+### R5 Time window
 
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 / R5 — properties › invariant 12 / R5: earliestStart is always on the departure date
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 / R5 — properties › invariant 13 / R5: tight ⇔ a deadline exists and slack <= 0; no deadline → never tight
@@ -114,7 +114,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R4-R5.time-windows.test.ts › R5 — time window and tight flag › R5: the next arrival may lie after the planning week
 - packages/domain/src/R4-R5.time-windows.test.ts › R5 — time window and tight flag › R5: the next arrival's checkinTime overrides the default check-in
 
-### R5a
+### R5a Late checkout / early check-in
 
 - packages/domain/src/R5a.time-overrides.test.ts › R5a — collapsed duplicate bookings (R1, invariant 11) › R5a: an override earlier than another collapsed booking's checkout does not pull earliestStart forward
 - packages/domain/src/R5a.time-overrides.test.ts › R5a — collapsed duplicate bookings (R1, invariant 11) › R5a: an override on a non-representative collapsed booking still counts
@@ -134,7 +134,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5a.time-overrides.test.ts › R5a — properties › R5a: the order of the overrides never changes the result (full permutation)
 - packages/domain/src/R5a.time-overrides.test.ts › R5a — properties › invariant 12 / R5a: earliestStart is always on the departure date, with overrides
 
-### R5b
+### R5b At risk
 
 - packages/domain/src/R5b.at-risk.test.ts › R5b — at risk › R5b: a manager override that shortens the window makes the task at risk
 - packages/domain/src/R5b.at-risk.test.ts › R5b — at risk › R5b: a negative window (late checkout 15:00, early check-in 12:00) keeps the task with its true times, at risk
@@ -143,7 +143,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5b.at-risk.test.ts › R5b — at risk › R5b: zero slack is tight but not at risk (premium out 11:00, in 16:00, 300 min)
 - packages/domain/src/R5b.at-risk.test.ts › R5b — properties › invariant 14 / R5b: atRisk ⇔ a deadline exists and window < estimatedMinutes; atRisk ⇒ tight
 
-### R5c
+### R5c Deferral
 
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: a deferred task keeps departureDate and earliestStart, has plannedDate > departureDate and deferred = true
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c — deferral › R5c: a task that cannot be finished on the next day before its deadline goes to shortfall instead of being deferred
@@ -156,17 +156,17 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 8 / R5c: no deferred task is planned past its deadline; a staffed task that cannot meet it is at risk
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival
 
-### R5d
+### R5d Priority
 
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 7 / R5d: the same tasks in any order give the same plan
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: on Sunday the only free housekeeper goes to the cottage with a same-day arrival (7), not the lowest number (2)
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: on a short day the tasks that can wait longest move first; on a tie the higher cottage number moves
 
-### R5e
+### R5e Deferred tasks on the new day
 
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5e — deferred tasks on the new day › R5e: a same-day arrival wins the last housekeeper over a deferred task, which moves on
 
-### R5f
+### R5f Weekend
 
 - packages/domain/src/R5f.weekend.test.ts › R5f — properties › invariant 16 / R5f: a task is planned on a Saturday or Sunday only if it cannot wait until the following Monday
 - packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: Monday check-in 14:00 — 14:30 > 14:00, so the task cannot wait and is cleaned on Sunday
@@ -178,7 +178,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: a weekend task without a deadline waits until Monday even when a housekeeper is free
 - packages/domain/src/R5f.weekend.test.ts › R5f — weekend › R5f: on Sunday only the task that cannot wait (7) is cleaned and needed; 2, 4, 8 are carried to Monday
 
-### R5g
+### R5g Carry-over
 
 - packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a carried task that can no longer be finished on the first day goes to shortfall as DEADLINE_PASSED
 - packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: a carried task that departs on or after the first day of the week is rejected as invalid input
@@ -189,12 +189,12 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: two carried tasks for the same cottage and departure date are rejected as invalid input, listing them
 - packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
 
-### R6
+### R6 Default crew size
 
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike
 
-### R10a
+### R10a Shortfall
 
 - packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day given twice in the headcount is rejected, listing the date

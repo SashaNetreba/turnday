@@ -4,6 +4,8 @@
 export interface DomainModel {
   rules: string[];
   invariants: string[];
+  /** Rule ID → short name from its bold label in §4 (e.g. R5g → "Carry-over"). Rules without a label are absent. */
+  labels: Record<string, string>;
 }
 
 export interface Refs {
@@ -29,6 +31,7 @@ export interface VitestReport {
 
 export interface Row {
   id: string;
+  label?: string;
   tests: string[];
 }
 
@@ -43,6 +46,9 @@ export interface Matrix {
 
 const RULE_REF = /(?<![A-Za-z0-9])R(\d+[a-z]?)(?![A-Za-z0-9])/g;
 const INVARIANT_REF = /\binvariant (\d+[a-z]?)\b/g;
+// A test title's prefix (before the first colon) must be only IDs, separated by " / " or ",".
+const ID = String.raw`(?:R\d+[a-z]?|invariant \d+[a-z]?)`;
+const STRICT_PREFIX = new RegExp(String.raw`^${ID}(?:(?: / |, ?)${ID})*$`);
 const NEAR_MISSES: RegExp[] = [
   /\bInvariants?\s+\d+[a-z]?\b/g, // capitalised
   /\binvariants\b[^:]*/g, // plural: "invariants 11, 12"
@@ -79,13 +85,16 @@ function uniqueSorted(ids: Iterable<string>): string[] {
 }
 
 export function parseDomainModel(md: string): DomainModel {
-  const rules = [...section(md, 'Business rules').matchAll(/^- \*\*R(\d+[a-z]?)\./gm)].map(
-    (m) => `R${m[1] ?? ''}`,
-  );
+  const headers = [
+    ...section(md, 'Business rules').matchAll(/^- \*\*R(\d+[a-z]?)\.(?: ([^*]+?)\.?)?\*\*/gm),
+  ];
+  const rules = headers.map((m) => `R${m[1] ?? ''}`);
+  const labels: Record<string, string> = {};
+  for (const m of headers) if (m[2] !== undefined) labels[`R${m[1] ?? ''}`] = m[2];
   const invariants = [...section(md, 'Invariants').matchAll(/^(\d+[a-z]?)\. /gm)].map(
     (m) => m[1] ?? '',
   );
-  return { rules: uniqueSorted(rules), invariants: uniqueSorted(invariants) };
+  return { rules: uniqueSorted(rules), invariants: uniqueSorted(invariants), labels };
 }
 
 export function extractRefs(text: string): Refs {
@@ -98,6 +107,28 @@ export function extractRefs(text: string): Refs {
 
 function hasIds(refs: Refs): boolean {
   return refs.rules.length > 0 || refs.invariants.length > 0;
+}
+
+const NO_REFS: Refs = { rules: [], invariants: [], nearMisses: [] };
+
+/**
+ * The IDs a test title counts for: only those in a prefix before the first colon that consists of IDs alone.
+ * Anything else credits nothing; `problems` says why, when the title mentions IDs at all.
+ */
+function titleRefs(title: string): { refs: Refs; problems: string[] } {
+  const colon = title.indexOf(':');
+  const prefix = colon === -1 ? undefined : title.slice(0, colon);
+  if (prefix !== undefined && STRICT_PREFIX.test(prefix))
+    return { refs: extractRefs(prefix), problems: [] };
+  const all = extractRefs(title);
+  if (!hasIds(all) && all.nearMisses.length === 0) return { refs: NO_REFS, problems: [] };
+  const problems =
+    prefix === undefined
+      ? ['IDs but no colon prefix']
+      : all.nearMisses.length > 0
+        ? all.nearMisses.map((miss) => `near miss: "${miss}"`)
+        : ['prefix is not only IDs'];
+  return { refs: NO_REFS, problems };
 }
 
 function label(t: TestCase): string {
@@ -118,17 +149,8 @@ export function buildMatrix(model: DomainModel, tests: TestCase[]): Matrix {
 
   for (const t of tests) {
     const name = label(t);
-    let refs = extractRefs(t.title);
-    if (!hasIds(refs)) {
-      const nearest = [...t.ancestorTitles].reverse().map(extractRefs).find(hasIds);
-      if (nearest) {
-        refs = nearest;
-        matrix.nonConforming.push({ test: name, reason: 'IDs only in describe block' });
-      }
-    }
-    for (const miss of [t.title, ...t.ancestorTitles].flatMap((s) => extractRefs(s).nearMisses)) {
-      matrix.nonConforming.push({ test: name, reason: `near miss: "${miss}"` });
-    }
+    const { refs, problems } = titleRefs(t.title);
+    for (const reason of problems) matrix.nonConforming.push({ test: name, reason });
 
     const counted = t.status === 'passed';
     if (!counted) matrix.excluded.push({ test: name, status: t.status });
@@ -146,11 +168,15 @@ export function buildMatrix(model: DomainModel, tests: TestCase[]): Matrix {
     }
   }
 
-  const rows = (m: Map<string, string[]>): Row[] =>
+  const rows = (m: Map<string, string[]>, labels: Record<string, string> = {}): Row[] =>
     [...m]
-      .map(([id, ts]) => ({ id, tests: [...new Set(ts)].sort(byCodePoint) }))
+      .map(([id, ts]): Row => {
+        const tests = [...new Set(ts)].sort(byCodePoint);
+        const label = labels[id];
+        return label === undefined ? { id, tests } : { id, label, tests };
+      })
       .sort((a, b) => compareIds(a.id, b.id));
-  matrix.rules = rows(ruleTests);
+  matrix.rules = rows(ruleTests, model.labels);
   matrix.invariants = rows(invariantTests);
   matrix.unknown.sort((a, b) => byCodePoint(a.test, b.test) || byCodePoint(a.ref, b.ref));
   matrix.nonConforming.sort(
@@ -183,18 +209,19 @@ export function collectTests(report: VitestReport, repoRoot: string): TestCase[]
 
 export function renderMarkdown(m: Matrix): string {
   const covered = (rows: Row[]): number => rows.filter((r) => r.tests.length > 0).length;
+  const name = (r: Row): string => (r.label === undefined ? r.id : `${r.id} ${r.label}`);
   const table = (heading: string, rows: Row[]): string[] => [
     `| ${heading} | Tests | Status |`,
     '|---|---|---|',
     ...rows.map(
       (r) =>
-        `| ${r.id} | ${String(r.tests.length)} | ${r.tests.length > 0 ? 'covered' : '**NOT COVERED**'} |`,
+        `| ${name(r)} | ${String(r.tests.length)} | ${r.tests.length > 0 ? 'covered' : '**NOT COVERED**'} |`,
     ),
   ];
   const details = (prefix: string, rows: Row[]): string[] =>
     rows
       .filter((r) => r.tests.length > 0)
-      .flatMap((r) => ['', `### ${prefix}${r.id}`, '', ...r.tests.map((t) => `- ${t}`)]);
+      .flatMap((r) => ['', `### ${prefix}${name(r)}`, '', ...r.tests.map((t) => `- ${t}`)]);
   const list = (items: string[]): string[] =>
     items.length > 0 ? items.map((i) => `- ${i}`) : ['None.'];
   const notCovered = (prefix: string, rows: Row[]): string =>
