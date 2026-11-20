@@ -64,6 +64,14 @@ describe('parseDomainModel', () => {
     expect(model.rules).toEqual(['R1', 'R5', 'R5a', 'R5b', 'R5f', 'R10']);
   });
 
+  it('reads rule short names from the bold label; rules without a label have none', () => {
+    expect(model.labels).toEqual({
+      R5a: 'Late checkout / early check-in',
+      R5b: 'At risk',
+      R5f: 'Weekend',
+    });
+  });
+
   it('reads invariant IDs only from the Invariants section, including letter suffixes (4a)', () => {
     expect(model.invariants).toEqual(['1', '4', '4a', '11']);
   });
@@ -81,6 +89,12 @@ describe('parseDomainModel', () => {
     );
     expect(real.invariants).toEqual(expect.arrayContaining(['1', '4a', '14']));
     expect(new Set(real.rules).size).toBe(real.rules.length);
+    expect(real.labels).toMatchObject({
+      R5e: 'Deferred tasks on the new day', // bold label without a closing period
+      R5g: 'Carry-over',
+      R10a: 'Shortfall',
+    });
+    expect(real.labels).not.toHaveProperty('R6');
   });
 });
 
@@ -259,6 +273,12 @@ describe('ordering and stable output', () => {
     expect(['11', '4a', '1', '4'].sort(compareIds)).toEqual(['1', '4', '4a', '11']);
   });
 
+  it('Rules → tests headings show the short name next to the ID', () => {
+    const md = renderMarkdown(buildMatrix(model, [test('R5a: x'), test('R1: y')]));
+    expect(md).toContain('\n### R5a Late checkout / early check-in\n');
+    expect(md).toContain('\n### R1\n');
+  });
+
   it('the same tests in a different order render byte-identical markdown', () => {
     const tests = [
       test('R5: b', [], 'passed', 'z.test.ts'),
@@ -276,7 +296,8 @@ describe('ordering and stable output', () => {
 
   it('marks uncovered rules and invariants as NOT COVERED and contains no timestamps', () => {
     const md = renderMarkdown(buildMatrix(model, [test('R1: x')]));
-    expect(md).toMatch(/\| R5a \| 0 \| \*\*NOT COVERED\*\* \|/);
+    expect(md).toMatch(/\| R5a Late checkout \/ early check-in \| 0 \| \*\*NOT COVERED\*\* \|/);
+    expect(md).toMatch(/\| R1 \| 1 \| covered \|/);
     expect(md).toMatch(/\| 4a \| 0 \| \*\*NOT COVERED\*\* \|/);
     expect(md).not.toMatch(/\d{4}-\d{2}-\d{2}T/);
   });

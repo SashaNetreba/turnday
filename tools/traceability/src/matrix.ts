@@ -4,6 +4,8 @@
 export interface DomainModel {
   rules: string[];
   invariants: string[];
+  /** Rule ID → short name from its bold label in §4 (e.g. R5g → "Carry-over"). Rules without a label are absent. */
+  labels: Record<string, string>;
 }
 
 export interface Refs {
@@ -29,6 +31,7 @@ export interface VitestReport {
 
 export interface Row {
   id: string;
+  label?: string;
   tests: string[];
 }
 
@@ -82,13 +85,16 @@ function uniqueSorted(ids: Iterable<string>): string[] {
 }
 
 export function parseDomainModel(md: string): DomainModel {
-  const rules = [...section(md, 'Business rules').matchAll(/^- \*\*R(\d+[a-z]?)\./gm)].map(
-    (m) => `R${m[1] ?? ''}`,
-  );
+  const headers = [
+    ...section(md, 'Business rules').matchAll(/^- \*\*R(\d+[a-z]?)\.(?: ([^*]+?)\.?)?\*\*/gm),
+  ];
+  const rules = headers.map((m) => `R${m[1] ?? ''}`);
+  const labels: Record<string, string> = {};
+  for (const m of headers) if (m[2] !== undefined) labels[`R${m[1] ?? ''}`] = m[2];
   const invariants = [...section(md, 'Invariants').matchAll(/^(\d+[a-z]?)\. /gm)].map(
     (m) => m[1] ?? '',
   );
-  return { rules: uniqueSorted(rules), invariants: uniqueSorted(invariants) };
+  return { rules: uniqueSorted(rules), invariants: uniqueSorted(invariants), labels };
 }
 
 export function extractRefs(text: string): Refs {
@@ -162,11 +168,15 @@ export function buildMatrix(model: DomainModel, tests: TestCase[]): Matrix {
     }
   }
 
-  const rows = (m: Map<string, string[]>): Row[] =>
+  const rows = (m: Map<string, string[]>, labels: Record<string, string> = {}): Row[] =>
     [...m]
-      .map(([id, ts]) => ({ id, tests: [...new Set(ts)].sort(byCodePoint) }))
+      .map(([id, ts]): Row => {
+        const tests = [...new Set(ts)].sort(byCodePoint);
+        const label = labels[id];
+        return label === undefined ? { id, tests } : { id, label, tests };
+      })
       .sort((a, b) => compareIds(a.id, b.id));
-  matrix.rules = rows(ruleTests);
+  matrix.rules = rows(ruleTests, model.labels);
   matrix.invariants = rows(invariantTests);
   matrix.unknown.sort((a, b) => byCodePoint(a.test, b.test) || byCodePoint(a.ref, b.ref));
   matrix.nonConforming.sort(
@@ -199,18 +209,19 @@ export function collectTests(report: VitestReport, repoRoot: string): TestCase[]
 
 export function renderMarkdown(m: Matrix): string {
   const covered = (rows: Row[]): number => rows.filter((r) => r.tests.length > 0).length;
+  const name = (r: Row): string => (r.label === undefined ? r.id : `${r.id} ${r.label}`);
   const table = (heading: string, rows: Row[]): string[] => [
     `| ${heading} | Tests | Status |`,
     '|---|---|---|',
     ...rows.map(
       (r) =>
-        `| ${r.id} | ${String(r.tests.length)} | ${r.tests.length > 0 ? 'covered' : '**NOT COVERED**'} |`,
+        `| ${name(r)} | ${String(r.tests.length)} | ${r.tests.length > 0 ? 'covered' : '**NOT COVERED**'} |`,
     ),
   ];
   const details = (prefix: string, rows: Row[]): string[] =>
     rows
       .filter((r) => r.tests.length > 0)
-      .flatMap((r) => ['', `### ${prefix}${r.id}`, '', ...r.tests.map((t) => `- ${t}`)]);
+      .flatMap((r) => ['', `### ${prefix}${name(r)}`, '', ...r.tests.map((t) => `- ${t}`)]);
   const list = (items: string[]): string[] =>
     items.length > 0 ? items.map((i) => `- ${i}`) : ['None.'];
   const notCovered = (prefix: string, rows: Row[]): string =>
