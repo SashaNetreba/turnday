@@ -15,7 +15,8 @@ week to week — from ~3 days per person in low season to ~6 days in high season
 
 Goals:
 
-1. **Generate** a fair schedule automatically (Mon–Fri by demand, Sat–Sun by demand + rotation).
+1. **Generate** a fair schedule automatically (Mon–Fri by demand; Sat–Sun only for tasks that cannot wait
+   until Monday (R5f), staffed by rotation (R12)).
 2. **Track** actual working time (start / stop per cottage).
 3. Stay **source-agnostic**: bookings come from a CSV export today and may come from an API later.
 
@@ -36,6 +37,11 @@ Goals:
 | **Crew** | The housekeepers assigned to one cleaning task (1 by default, 2 for premium or extra-dirty). |
 | **Weekend rotation** | Fair turn-taking for Saturday/Sunday shifts. |
 | **Time entry** | Actual start/stop recorded by a housekeeper for an assignment. |
+| **Headcount** | Number of housekeepers available on a date — input to planning (R10a). |
+| **Workday start** | Time housekeepers start work; the start of a deferred task's window (R5c). |
+| **Deferral** | Cleaning a task on a later day than its departure (R5c). |
+| **Shortfall** | A task that cannot be staffed before its deadline — reported, never dropped (R10a). |
+| **Carry-over** | A task still waiting after the planning week; it moves into the next week's planning (R5g). |
 
 ---
 
@@ -79,20 +85,34 @@ CleaningTask                  # derived from bookings, never entered manually
   cottageNumber
   kind: DEPARTURE
   departureDate               # when the guest leaves
-  plannedDate                 # when it is cleaned (= departureDate, or later if deferred)
-  deferred: boolean
+  plannedDate                 # when it is cleaned (= departureDate, or later if deferred, R5c)
+  deferred: boolean           # ⇔ plannedDate > departureDate (invariant 15)
   estimatedMinutes: int
-  requiredCrewSize: 1 | 2     # added with R6, not implemented yet
+  requiredCrewSize: 1 | 2     # R6: always 1 for now; R7a / R8 raise it later
   earliestStart: datetime     # local wall-clock YYYY-MM-DDTHH:MM: departure date + checkout time (incl. late checkout)
   deadline?: datetime         # local wall-clock: next arrival into this cottage + check-in time (incl. early check-in);
                               # empty if no next arrival is known
-  tight: boolean              # R5: deadline exists and (deadline − earliestStart − estimatedMinutes) ≤ 0
-  atRisk: boolean             # R5b: deadline exists and (deadline − earliestStart) < estimatedMinutes
+  tight: boolean              # R5: deadline exists and (deadline − windowStart − estimatedMinutes) ≤ 0
+  atRisk: boolean             # R5b: deadline exists and (deadline − windowStart) < estimatedMinutes
+                              # windowStart = earliestStart, or plannedDate + workdayStart if deferred (R5c)
 
 SchedulingConfig              # passed into the domain, never hard-coded there
   estimatedMinutes: { STABLE: int, PREMIUM: int }   # R4, planning values (upper bound)
   defaultCheckoutTime: time   # R5
   defaultCheckinTime: time    # R5
+  workdayStart: time          # R5c: housekeepers start work; start of a deferred task's window
+
+Headcount                     # R10a: input to planning, one entry for every day of the planning week
+  date
+  available: int >= 0         # housekeepers available that day (derived from Housekeeper + Availability with R10)
+
+WeekPlan                      # output of planning one week (R5c–R5g, R10a)
+  tasks: [CleaningTask]       # staffed, plannedDate within the week
+  days: [{ date, needed, available }]   # needed = Σ requiredCrewSize of that day's candidates;
+                                        # on Sat/Sun only those that cannot wait until Monday (R10a, R5f)
+  shortfall: [{ task, reason: NO_STAFF | DEADLINE_PASSED, lastPossibleDate? }]
+                              # lastPossibleDate (NO_STAFF): last day the task could still have been cleaned
+  carriedOver: [CleaningTask] # still waiting after the week's last day → input to the next week (R5g)
 
 Assignment
   taskId
@@ -123,6 +143,7 @@ TimeEntry
 | `estimatedMinutes.PREMIUM` | 300 (5 h) |
 | `defaultCheckoutTime` | 10:00 |
 | `defaultCheckinTime` | 16:00 |
+| `workdayStart` | 10:00 |
 
 ---
 
@@ -181,14 +202,54 @@ TimeEntry
   - Suggesting a crew of 2 for an at-risk task belongs to the crew rules (R6/R7a), which read `atRisk`.
 
 ### Deferral
-- **R5c.** A task may be **deferred** to a later day only when **both** are true:
-  1. there are not enough available housekeepers on the departure day, and
-  2. the cottage has no arrival that day (the deferred clean still finishes before the next arrival).
-- **R5d.** Tasks with a same-day arrival are staffed first; deferrable tasks are the first to move when staff is short.
-- **R5e.** Deferred tasks are prioritised on the day they move to (ordered by deadline).
+- **R5c. Deferral.** Tasks are planned day by day through the planning week. A day's **candidates** are the tasks
+  departing that day plus every task still waiting from earlier days (deferred, or carried over, R5g). They are
+  staffed in priority order (R5d) while housekeepers are free; a task takes `requiredCrewSize` of the day's headcount (R10a).
+  A candidate that is not staffed:
+  - is **deferred** to the next day if it can still be finished there: it has no deadline, or
+    `next day + workdayStart + estimatedMinutes ≤ deadline`. The arrival day itself counts when the clean fits before
+    check-in (seed: stable 10:00 + 270 = 14:30, premium 15:00, both ≤ 16:00);
+  - otherwise goes to the **shortfall** report (R10a) with reason `NO_STAFF`.
+  - Deferral **chains**: a task waits until the first day a housekeeper is free for it; a task without a deadline
+    waits as long as it takes. A task with a same-day arrival can never be deferred.
+  - On the departure day no deadline check applies: the task is staffed if a housekeeper is free, even when its
+    window is shorter than the estimate (it is at risk, R5b).
+  - Deferral never changes `departureDate` or `earliestStart`. A task cleaned later gets `plannedDate` = that day and
+    `deferred = true`. Its `tight` / `atRisk` are recalculated with the window starting at `plannedDate + workdayStart`.
+    By the deferral condition a deferred task is **never at risk**; with zero slack it is tight.
+  - So a task is deferred only when its departure day had no housekeeper left for it (R5d) or was a weekend day it
+    could wait through (R5f), and only while it can still be finished before the next arrival.
+- **R5d. Priority.** A day's candidates are ordered by **deadline, earliest first**, tasks without a deadline last; ties
+  by **cottage number, lowest first**, then by departure date. The same order decides who is staffed and who waits:
+  - a task with a same-day arrival is staffed before any task that can wait (it has the day's earliest deadline);
+  - on a short day the tasks that can wait longest move: no deadline first, then the latest deadline; on a tie the
+    higher cottage number moves;
+  - when even the tasks that cannot wait don't all fit, the ones with the latest deadline go to shortfall.
+- **R5e. Deferred tasks on the new day** compete with that day's own tasks in the same order (R5d) — no separate
+  queue. A deferred task does not jump ahead of a task with an earlier deadline.
+  Example: Monday's cottage 3 (next arrival Wednesday 16:00) is deferred to Tuesday. On Tuesday it competes for the last
+  housekeeper with cottage 6, which departs Tuesday and has an arrival Tuesday 16:00 → 6 is staffed; 3 moves to
+  Wednesday (10:00 + 270 = 14:30 ≤ 16:00).
+- **R5f. Weekend.** Saturday and Sunday are days off (by calendar weekday, wherever the planning week starts).
+  On a weekend day a candidate is staffed only if it **cannot wait until Monday**: it has a deadline and
+  `following Monday + workdayStart + estimatedMinutes > deadline`. Such a task is cleaned as early as possible —
+  on its departure day if a housekeeper is free, otherwise on the next day it still fits before the deadline; if
+  none → shortfall. Every other weekend candidate is deferred to Monday, even if housekeepers are free, and competes
+  there by R5d. Who works the weekend is decided by the rotation (R12).
+  Examples:
+  - Sunday departures from 2, 4, 7, 8; only 7 has an arrival on Sunday 16:00 → only 7 is cleaned on Sunday;
+    2, 4 and 8 move to Monday.
+  - Cottage 5 out Saturday, in Sunday 16:00: a free housekeeper on Saturday → Saturday; nobody free on Saturday →
+    Sunday (10:00 + 270 = 14:30 ≤ 16:00); nobody on Sunday either → shortfall.
+- **R5g. Carry-over.** A task still waiting after the planning week's last day is **not** a shortfall: it is returned
+  in `carriedOver` (`deferred = true`). Planning accepts the previous week's `carriedOver` as input; carried tasks are
+  candidates from the week's first day and ordered by R5d with the others. A carried task that can no longer be
+  finished on the week's first day (`start + workdayStart + estimatedMinutes > deadline`) goes to shortfall with reason
+  `DEADLINE_PASSED`. A carried task must have departed before the week starts; otherwise the input is invalid.
 
 ### Crew
-- **R6.** Default crew size is 1 (one housekeeper — one cottage), for stable **and** premium.
+- **R6.** Default crew size is 1 (one housekeeper — one cottage), for stable **and** premium. Every task gets
+  `requiredCrewSize = 1`; R7a and R8 may raise it.
 - **R7.** Premium crew is either:
   - **one** housekeeper with `premiumMode = SOLO`, or
   - **the two** housekeepers with `premiumMode = PAIR_ONLY`, together.
@@ -199,8 +260,14 @@ TimeEntry
 ### Capacity
 - **R9.** A housekeeper takes at most **one** cleaning task per day. This follows from R4 + R5: the earliest start is 10:00, one clean takes ≥ 4 h, so a second clean could not finish by 16:00.
 - **R10.** A housekeeper is never scheduled on a day they are unavailable.
-- **R10a. Shortfall.** **Staff needed on a day** = Σ crew sizes of that day's tasks.
-  If staff needed > staff available, the schedule is produced with an explicit **shortfall warning**, never silently.
+- **R10a. Shortfall.** Planning takes a **headcount** for every day of the planning week (housekeepers available,
+  integer ≥ 0). A missing day, or a negative or non-integer count, makes the input **invalid**: it is rejected
+  with the list of affected dates, never treated as 0. (Deriving headcount from `Housekeeper` + `Availability` belongs to R10.)
+  **Staff needed on a day** = Σ `requiredCrewSize` of that day's candidates (R5c). On a Saturday or Sunday only the
+  candidates that cannot wait until Monday (R5f) count; tasks deferred to Monday by the weekend rule are not needed that day.
+  Example: Sunday departures 2, 4, 7, 8, only 7 with a Sunday arrival, one housekeeper → needed 1, available 1, no shortage.
+  If staff needed > staff available, the schedule is still produced, and every task that can be neither staffed nor
+  deferred is listed in the **shortfall** report — never silently dropped.
 
 ### Fairness
 - **R11.** Over a week, shifts are distributed as evenly as possible across active housekeepers (difference between most and least loaded ≤ 1 shift where availability allows).
@@ -227,7 +294,8 @@ TimeEntry
 
 For any randomly generated week of bookings and availability, the generated schedule must satisfy:
 
-1. Every task is either fully staffed or listed in the shortfall report.
+1. Every task is in exactly one of: staffed on its `plannedDate`, the shortfall report, or `carriedOver`.
+   On no day does the staffed tasks' Σ `requiredCrewSize` exceed that day's headcount.
 2. No housekeeper is assigned on an unavailable day.
 3. No housekeeper has more than one task per day.
 4. Every premium task's crew is either one `SOLO` housekeeper or exactly the two `PAIR_ONLY` housekeepers.
@@ -236,14 +304,19 @@ For any randomly generated week of bookings and availability, the generated sche
 6. Regenerating the schedule keeps all manual overrides.
 7. Generation is deterministic: same input → same schedule.
 8. No task is planned after its deadline; a task that cannot meet it appears in the shortfall/at-risk report.
-9. A task is deferred only if its departure day was short-staffed and it had no same-day arrival.
+9. A task is deferred only if, on every day from its `departureDate` up to the day before its `plannedDate`, either
+   no housekeeper was left for it (R5d) or it was a weekend day the task could wait through (R5f). A task with a
+   same-day arrival is never deferred.
 10. Re-importing the same CSV never removes manager overrides (time overrides, crew overrides).
 11. At most one `DEPARTURE` task per cottage per day.
 12. Every task's `earliestStart` falls on its `departureDate`.
 13. A task without a deadline is never tight. With default check-in/out times and no overrides, `deadline >= earliestStart`
     whenever a deadline exists. (Overrides or booking times may produce a negative window — see invariant 14.)
-14. A task is at risk ⇔ it has a deadline and `deadline − earliestStart < estimatedMinutes`. A task without a deadline is
-    never at risk; every at-risk task is tight; a task with a negative window is at risk.
+14. A task is at risk ⇔ it has a deadline and `deadline − windowStart < estimatedMinutes` (`windowStart` = `earliestStart`,
+    or `plannedDate + workdayStart` if deferred). A task without a deadline is never at risk; every at-risk task is
+    tight; a task with a negative window is at risk; a deferred task is never at risk.
+15. `deferred` ⇔ `plannedDate > departureDate`. Planning never changes `departureDate` or `earliestStart`.
+16. A task is planned on a Saturday or Sunday only if it cannot wait until the following Monday (R5f).
 
 ---
 
@@ -257,8 +330,12 @@ Resolved:
 - [x] **Capacity:** one cottage per person per day → R9 (derived).
 - [x] **Availability:** entered by the manager → §3, §5.
 
-- [x] **No same-day arrival:** clean can be deferred, but only when short-staffed → R5c–R5e.
+- [x] **No same-day arrival:** clean can be deferred when short-staffed, or over the weekend → R5c–R5f.
 - [x] **Late checkout / early check-in:** set by the manager in the app → R5a, R5b.
+- [x] **Deferral order:** one priority — earliest deadline first, no deadline last, then cottage number → R5d, R5e.
+- [x] **How far a task is deferred:** chained to the first day with a free housekeeper, while it still fits → R5c.
+- [x] **Weekend:** days off; only tasks that cannot wait until Monday are staffed → R5f.
+- [x] **Past the planning week:** carried over into the next week, not shortfall → R5g.
 
 Open: none for v1.
 
@@ -307,3 +384,7 @@ Backlog:
 - [ ] API **warns** when a `LATE_CHECKOUT` is earlier than the booking/default checkout, or an `EARLY_CHECKIN` is later
       than the booking/default check-in (R5a — likely a typo).
 - [ ] API **warns** when saving an override that gives a task a negative window (R5b).
+- [ ] Reconcile carried-over tasks (R5g) with actual completion data from time tracking (R13–R15): a task cleaned
+      anyway, or cleaned late, should not be carried again.
+- [ ] When crew size 2 exists (R7a / R8), the deferral check (R5c) should use the crew-adjusted duration — e.g. premium
+      with early check-in 14:00 fits on its arrival day with a crew of 2 — so that shortfall case becomes a deferral with crew 2.

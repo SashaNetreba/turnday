@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 7 of 22 covered
-- Invariants: 5 of 15 covered
+- Rules: 7 of 24 covered
+- Invariants: 5 of 17 covered
 
 ## NOT COVERED
 
-- Rules: R5c, R5d, R5e, R6, R7, R7a, R8, R9, R10, R10a, R11, R12, R13, R14, R15
-- Invariants: 1, 2, 3, 4, 4a, 6, 7, 8, 9, 10
+- Rules: R5c, R5d, R5e, R5f, R5g, R6, R7, R7a, R8, R9, R10, R10a, R11, R12, R13, R14, R15
+- Invariants: 1, 2, 3, 4, 4a, 6, 7, 8, 9, 10, 15, 16
 
 ## Rules
 
@@ -29,6 +29,8 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5c | 0 | **NOT COVERED** |
 | R5d | 0 | **NOT COVERED** |
 | R5e | 0 | **NOT COVERED** |
+| R5f | 0 | **NOT COVERED** |
+| R5g | 0 | **NOT COVERED** |
 | R6 | 0 | **NOT COVERED** |
 | R7 | 0 | **NOT COVERED** |
 | R7a | 0 | **NOT COVERED** |
@@ -61,6 +63,8 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 12 | 2 | covered |
 | 13 | 2 | covered |
 | 14 | 1 | covered |
+| 15 | 0 | **NOT COVERED** |
+| 16 | 0 | **NOT COVERED** |
 
 ## Rules → tests
 
