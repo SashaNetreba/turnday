@@ -13,7 +13,8 @@ clock or depend on a time-zone database.
 ## Decision
 Planning times in `packages/domain` are local wall-clock values without a zone: `LocalDate` (`YYYY-MM-DD`),
 `LocalTime` (`HH:MM`) and `LocalDateTime` (`YYYY-MM-DDTHH:MM`), as branded strings. Minute differences use pure
-calendar arithmetic with no DST. Adapters convert to and from UTC. "Now" still comes only from the `Clock` port.
+calendar arithmetic with no DST. Adapters convert to and from UTC. The domain never reads "now"; a `Clock` port is
+planned and comes with the API/adapters.
 
 ## Alternatives considered
 - UTC instants (`Date` / epoch ms) in the domain — needs Europe/London zone rules inside the domain to turn
@@ -24,8 +25,9 @@ calendar arithmetic with no DST. Adapters convert to and from UTC. "Now" still c
 ## Consequences
 - Good: rules read like the manager's language; tests are plain strings; ISO strings sort chronologically.
 - Good: no zone data or clock in the domain, so dependency-cruiser rules stay simple.
-- Trade-off: a window that spans a DST change night is off by ±60 min. With realistic times (checkout in the
-  morning, check-in in the afternoon) this never changes `tight`: a multi-day window has far more slack than
-  60 min, and a same-day window does not cross the 01:00/02:00 shift.
+- Trade-off: a window that spans a DST change night is off by ±60 min. For realistic times (checkout in the
+  morning, check-in in the afternoon) this should not change `tight` or `atRisk` (both come from the same
+  window): a multi-day window has far more slack than 60 min, and a same-day window does not cross the
+  01:00/02:00 shift. This is not tested in the domain; it will be covered by adapter tests with R15.
 - Trade-off: time-entry durations (R15) must be computed from UTC instants in an adapter or a separate model,
   not from these planning types.

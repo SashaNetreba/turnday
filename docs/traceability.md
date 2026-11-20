@@ -7,19 +7,19 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 7 of 21 covered
+- Rules: 7 of 22 covered
 - Invariants: 5 of 15 covered
 
 ## NOT COVERED
 
-- Rules: R5c, R5d, R5e, R6, R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
+- Rules: R5c, R5d, R5e, R6, R7, R7a, R8, R9, R10, R10a, R11, R12, R13, R14, R15
 - Invariants: 1, 2, 3, 4, 4a, 6, 7, 8, 9, 10
 
 ## Rules
 
 | Rule | Tests | Status |
 |---|---|---|
-| R1 | 8 | covered |
+| R1 | 9 | covered |
 | R2 | 3 | covered |
 | R3 | 4 | covered |
 | R4 | 3 | covered |
@@ -35,6 +35,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R8 | 0 | **NOT COVERED** |
 | R9 | 0 | **NOT COVERED** |
 | R10 | 0 | **NOT COVERED** |
+| R10a | 0 | **NOT COVERED** |
 | R11 | 0 | **NOT COVERED** |
 | R12 | 0 | **NOT COVERED** |
 | R13 | 0 | **NOT COVERED** |
@@ -67,6 +68,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1 / invariant 11: duplicate bookings for the same cottage and departure date collapse into one task
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1/R2/R3: RezLynx sample week 13–19 Nov 2026
+- packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: among duplicates the booking with the lowest externalRef is kept as bookingRef
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: creates one task per booking departing in the planning week
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: ignores cancelled bookings
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — examples › R1: ignores departures before and after the planning week

@@ -28,9 +28,10 @@ CI then runs `pnpm test:matrix` and fails if the committed `docs/traceability.md
   must hold for every schedule also gets an invariant in §6.
 - **Red before green.** The test is written first and run; it must fail for the right reason before the code is written.
 - **A property test per invariant.** Every invariant in §6 gets a fast-check property; example tests pin the concrete cases.
-- **Determinism.** The domain never reads the clock (time comes in through the `Clock` port), so the same input gives
-  the same output. Example tests use fixed dates. fast-check runs without a fixed global seed, so each run explores new
-  inputs; when a property fails, fast-check prints the seed and path, and the failure is replayed with them.
+- **Determinism.** The domain never reads the clock (time is passed in; a `Clock` port is planned and comes with the
+  API/adapters), so the same input gives the same output. Example tests use fixed dates. fast-check runs without a
+  fixed global seed, so each run explores new inputs; when a property fails, fast-check prints the seed and path, and
+  the failure is replayed with them.
 - **Vacuous-pass check by mutation.** A green test only counts if it can go red: after green, the code under test is
   deliberately broken and the test must fail. Today this is done by hand; Stryker will automate it (planned).
 - **Success only by exit code.** A check passes when its exit code is 0 — never by reading or grepping its output.
