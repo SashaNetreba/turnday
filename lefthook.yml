@@ -1,0 +1,16 @@
+# Git hooks — the local copy of the quality gate (CLAUDE.md "Before every commit"). Never bypass them.
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      run: pnpm lint
+    typecheck:
+      run: pnpm typecheck
+
+pre-push:
+  commands:
+    verify:
+      run: pnpm verify
+    # docs/traceability.md is generated: fail if the committed copy is stale (same check as CI).
+    traceability:
+      run: pnpm test:matrix && git diff --exit-code docs/traceability.md

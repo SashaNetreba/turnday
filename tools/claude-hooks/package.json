@@ -1,0 +1,14 @@
+{
+  "name": "@turnday/claude-hooks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude Code PreToolUse guard: blocks git push and git hook bypasses in Bash commands.",
+  "scripts": {
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "vitest": "^5.1.0"
+  }
+}

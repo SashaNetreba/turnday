@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    // guard.ts is imported directly by Node from .claude/hooks/guard-bash.js (type stripping, Node >= 22.18):
+    // only erasable syntax, .ts imports.
+    "erasableSyntaxOnly": true,
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src"]
+}
