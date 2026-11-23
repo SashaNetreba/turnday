@@ -8,6 +8,7 @@ import {
   headcountFor,
   isWeekendDay,
   lastStay,
+  nextDayBoundaryScenarioArb,
   planningScenarioArb,
   seedConfig,
   seedCottages,
@@ -149,6 +150,24 @@ describe('R5d — priority', () => {
     expect(onDay(p, '2026-11-17').sort((a, b) => a - b)).toEqual([1, 3, 9]);
     expect(plan([...bookings].reverse(), headcount)).toEqual(p);
   });
+
+  it('R5d: a task that cannot be deferred is staffed before one that can, even with a later deadline', () => {
+    // Mon, one housekeeper: 3 (stable) next let Tue 14:35 → fits Tue (10:00 + 270 = 14:30);
+    // 11 (premium) next let Tue 14:50 → does not fit Tue (10:00 + 300 = 15:00).
+    const p = plan(
+      [
+        ...stay(3, '2026-11-16', '2026-11-17', '14:35'),
+        ...stay(11, '2026-11-16', '2026-11-17', '14:50'),
+      ],
+      headcountFor(week, 1, {}, 1), // a reserve is free every day (R10b)
+    );
+
+    expect(onDay(p, '2026-11-16')).toEqual([11]);
+    expect(taskOf(p, 11)).toMatchObject({ plannedDate: '2026-11-16', deferred: false });
+    expect(taskOf(p, 3)).toMatchObject({ plannedDate: '2026-11-17', deferred: true });
+    expect(p.shortfall).toEqual([]);
+    expect(p.days.map((d) => d.reserveCalls)).toEqual([0, 0, 0, 0, 0, 0, 0]); // R10b
+  });
 });
 
 describe('R5e — deferred tasks on the new day', () => {
@@ -195,19 +214,22 @@ describe('R5c–R5e — properties', () => {
     );
   });
 
-  it('invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival', () => {
+  it('invariant 9 / R5c: a task is deferred only past days with no regular left or weekend days it could wait through, never with a same-day arrival', () => {
     fc.assert(
       fc.property(planningScenarioArb, ([bookings, w, headcount]) => {
         const { p } = run(bookings, w, headcount);
-        const availableOn = new Map(headcount.map((h) => [h.date, h.available]));
+        const regularOn = new Map(headcount.map((h) => [h.date, h.regular]));
+        const reserveCallsOn = new Map(p.days.map((d) => [d.date, d.reserveCalls]));
         // Carried-over tasks (R5g) are deferred too: every day from departure to the week's last day.
         for (const t of [...p.tasks, ...p.carriedOver].filter((x) => x.deferred)) {
           expect(t.deadline?.slice(0, 10)).not.toBe(t.departureDate);
           for (let d = t.departureDate; d < t.plannedDate; d = addDays(d, 1)) {
-            const used = p.tasks
-              .filter((x) => x.plannedDate === d)
-              .reduce((sum, x) => sum + x.requiredCrewSize, 0);
-            const full = used + t.requiredCrewSize > (availableOn.get(d) ?? 0);
+            // R10b: a free reserve does not count — a task that can wait is deferred, not given to the reserve.
+            const usedByRegulars =
+              p.tasks
+                .filter((x) => x.plannedDate === d)
+                .reduce((sum, x) => sum + x.requiredCrewSize, 0) - (reserveCallsOn.get(d) ?? 0);
+            const full = usedByRegulars + t.requiredCrewSize > (regularOn.get(d) ?? 0);
             const weekendWait = isWeekendDay(d) && canWaitUntilMonday(t, d, config); // R5f
             expect(full || weekendWait).toBe(true);
           }
@@ -242,6 +264,31 @@ describe('R5c–R5e — properties', () => {
           expect(t.earliestStart).toBe(original.get(key(t))?.earliestStart);
         }
       }),
+    );
+  });
+
+  it('invariant 19 / R5d: when a task that cannot be deferred goes to shortfall, no task that could be deferred was staffed that day', () => {
+    /** R5c: the task can still be finished on `day` (no deadline, or workdayStart + estimate ≤ deadline). */
+    const fitsOn = (t: CleaningTask, day: string): boolean =>
+      t.deadline === undefined ||
+      minutes(`${day}T${config.workdayStart}`, t.deadline) >= t.estimatedMinutes;
+
+    fc.assert(
+      fc.property(
+        fc.oneof(nextDayBoundaryScenarioArb, planningScenarioArb),
+        ([bookings, w, headcount]) => {
+          const { p } = run(bookings, w, headcount);
+          for (const s of p.shortfall.filter((x) => x.reason === 'NO_STAFF')) {
+            const day = s.lastPossibleDate;
+            if (day === undefined) continue;
+            const next = addDays(day, 1); // after the week's last day: the next week's first day (R5g)
+            const deferrableStaffed = p.tasks
+              .filter((t) => t.plannedDate === day && fitsOn(t, next))
+              .map((t) => t.cottageNumber);
+            expect(deferrableStaffed).toEqual([]);
+          }
+        },
+      ),
     );
   });
 

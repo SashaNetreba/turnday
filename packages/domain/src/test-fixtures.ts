@@ -50,13 +50,22 @@ export function booking(
   };
 }
 
-/** Headcount for every day of `week`: `available` by default, `perDay` overrides by ISO date. */
+/**
+ * Headcount for every day of `week`: `regular` and `reserve` by default; `perDay` overrides by ISO date — a number
+ * overrides `regular`, an object either count.
+ */
 export function headcountFor(
   week: PlanningWeek,
-  available: number,
-  perDay: Readonly<Record<string, number>> = {},
+  regular: number,
+  perDay: Readonly<Record<string, number | { regular?: number; reserve?: number }>> = {},
+  reserve = 0,
 ): Headcount[] {
-  return daysOf(week).map((date) => ({ date, available: perDay[date] ?? available }));
+  return daysOf(week).map((date) => {
+    const day = perDay[date];
+    if (day === undefined) return { date, regular, reserve };
+    if (typeof day === 'number') return { date, regular: day, reserve };
+    return { date, regular: day.regular ?? regular, reserve: day.reserve ?? reserve };
+  });
 }
 
 // ---- Booking scenarios for planning tests ----
@@ -142,11 +151,24 @@ export const weekArb: fc.Arbitrary<PlanningWeek> = fc
   .integer({ min: -3, max: 3 })
   .map((offset) => ({ start: addDays(propertyBase, offset) }));
 
-/** Headcount 0–`max` for every day of `week`. */
-export const headcountArb = (week: PlanningWeek, max = 4): fc.Arbitrary<Headcount[]> =>
+/** Headcount for every day of `week`: regular 0–`max`, reserve 0–`maxReserve`. */
+export const headcountArb = (
+  week: PlanningWeek,
+  max = 4,
+  maxReserve = 0,
+): fc.Arbitrary<Headcount[]> =>
   fc
-    .array(fc.integer({ min: 0, max }), { minLength: 7, maxLength: 7 })
-    .map((counts) => daysOf(week).map((date, i) => ({ date, available: counts[i] ?? 0 })));
+    .array(fc.tuple(fc.integer({ min: 0, max }), fc.integer({ min: 0, max: maxReserve })), {
+      minLength: 7,
+      maxLength: 7,
+    })
+    .map((counts) =>
+      daysOf(week).map((date, i) => ({
+        date,
+        regular: counts[i]?.[0] ?? 0,
+        reserve: counts[i]?.[1] ?? 0,
+      })),
+    );
 
 // ---- Test oracles for the weekend rule (R5f), independent of the domain's date helpers ----
 
@@ -216,7 +238,6 @@ const deferralBookingsArb = weekArb.chain((w) =>
     ]),
 );
 
-/** Bookings + week + headcount 0–2 per day: broad random bookings or departures focused on deferral. */
 /**
  * Focused on the weekend boundary (R5f): departures on the week's Saturday / Sunday whose next guest arrives on the
  * following Monday around 14:00–14:31 (workdayStart 10:00 + 4:30 stable = 14:30), plus a few weekday departures.
@@ -250,6 +271,131 @@ const weekendBoundaryArb = weekArb.chain((w) => {
     ]);
 });
 
+/** A departure for `nextDayBoundaryScenarioArb`: next guest the next day at `next` minutes past midnight, or none. */
+interface BoundaryDeparture {
+  readonly cottage: number;
+  readonly outOffset: number;
+  readonly next: number | 'SAME_DAY' | 'NONE';
+}
+
+const hhmm = (minutes: number): LocalTime =>
+  localTime(
+    `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`,
+  );
+
+/**
+ * Focused on the R5d groups (invariant 19), Monday–Sunday week. Every scenario has a boundary pair departing the same
+ * day (Mon–Sat): a stable cottage whose next guest arrives the next day at 14:30–14:50 (fits the next day: 10:00 +
+ * 270 = 14:30) and a premium cottage arriving later but before 15:00 (does not fit: 10:00 + 300 = 15:00) — the
+ * stable one has the earlier deadline but can wait. Plus up to 4 other departures (next-day check-in 14:00–15:00,
+ * same-day arrival or none) and headcount regular 0–2, reserve 0–1 per day, so short days are common.
+ */
+export const nextDayBoundaryScenarioArb: fc.Arbitrary<[Booking[], PlanningWeek, Headcount[]]> = fc
+  .tuple(
+    fc
+      .record({
+        outOffset: fc.integer({ min: 0, max: 5 }),
+        stable: fc.integer({ min: 1, max: 10 }),
+        premium: fc.constantFrom(11, 12, 15),
+        stableStep: fc.integer({ min: 0, max: 4 }), // 14:30–14:50
+        gapSteps: fc.integer({ min: 1, max: 5 }), // premium 5–25 min later, capped below 15:00
+      })
+      .map(({ outOffset, stable, premium, stableStep, gapSteps }): BoundaryDeparture[] => {
+        const stableCheckin = 14 * 60 + 30 + stableStep * 5;
+        const premiumCheckin = Math.min(stableCheckin + gapSteps * 5, 14 * 60 + 55);
+        return [
+          { cottage: stable, outOffset, next: stableCheckin },
+          { cottage: premium, outOffset, next: premiumCheckin },
+        ];
+      }),
+    fc.array(
+      fc.record({
+        cottage: fc.constantFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15),
+        outOffset: fc.integer({ min: 0, max: 6 }),
+        next: fc.oneof(
+          {
+            weight: 2,
+            arbitrary: fc.integer({ min: 0, max: 12 }).map((step) => 14 * 60 + step * 5),
+          },
+          { weight: 1, arbitrary: fc.constantFrom<'SAME_DAY' | 'NONE'>('SAME_DAY', 'NONE') },
+        ),
+      }),
+      { maxLength: 4 },
+    ),
+  )
+  .map(([pair, others]): Booking[] =>
+    [...pair, ...others].flatMap(({ cottage, outOffset, next }, i) => {
+      const out = addDays(propertyBase, outOffset);
+      const leaving = booking(`D${String(i)}`, cottage, addDays(out, -3), out);
+      if (next === 'NONE') return [leaving];
+      if (next === 'SAME_DAY') {
+        return [leaving, booking(`S${String(i)}`, cottage, out, addDays(out, 9))];
+      }
+      const arrival = addDays(out, 1);
+      return [
+        leaving,
+        {
+          ...booking(`N${String(i)}`, cottage, arrival, addDays(arrival, 9)),
+          checkinTime: hhmm(next),
+        },
+      ];
+    }),
+  )
+  .chain((bookings) => {
+    const w: PlanningWeek = { start: propertyBase };
+    return fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2, 1));
+  });
+
+/**
+ * Two chained Monday–Sunday weeks focused on the week boundary (R5g, R10b): departures on week 1's Sunday and week 2's
+ * Monday with a same-day arrival, no next arrival, or a next-day check-in 14:00–15:00 — so Sunday overflows, some
+ * tasks are carried into Monday and cannot wait there. Headcount: regular 0–1, reserve 0–1 per day.
+ */
+export const weekBoundaryTwoWeekScenarioArb: fc.Arbitrary<
+  [Booking[], PlanningWeek, Headcount[], PlanningWeek, Headcount[]]
+> = fc
+  .array(
+    fc.record({
+      cottage: fc.constantFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15),
+      outOffset: fc.constantFrom(6, 7), // week 1's Sunday, week 2's Monday
+      next: fc.oneof(
+        fc.integer({ min: 0, max: 12 }).map((step) => 14 * 60 + step * 5),
+        fc.constantFrom<'SAME_DAY' | 'NONE'>('SAME_DAY', 'NONE'),
+      ),
+    }),
+    { minLength: 2, maxLength: 8 },
+  )
+  .map((departures): Booking[] =>
+    departures.flatMap(({ cottage, outOffset, next }, i) => {
+      const out = addDays(propertyBase, outOffset);
+      const leaving = booking(`B${String(i)}`, cottage, addDays(out, -3), out);
+      if (next === 'NONE') return [leaving];
+      if (next === 'SAME_DAY') {
+        return [leaving, booking(`T${String(i)}`, cottage, out, addDays(out, 9))];
+      }
+      const arrival = addDays(out, 1);
+      return [
+        leaving,
+        {
+          ...booking(`A${String(i)}`, cottage, arrival, addDays(arrival, 9)),
+          checkinTime: hhmm(next),
+        },
+      ];
+    }),
+  )
+  .chain((bookings) => {
+    const w1: PlanningWeek = { start: propertyBase };
+    const w2: PlanningWeek = { start: addDays(propertyBase, 7) };
+    return fc.tuple(
+      fc.constant(bookings),
+      fc.constant(w1),
+      headcountArb(w1, 1, 1),
+      fc.constant(w2),
+      headcountArb(w2, 1, 1),
+    );
+  });
+
+/** Bookings + week + headcount (regular 0–2, reserve 0–1 per day): broad, deferral- or weekend-focused. */
 export const planningScenarioArb = fc
   .oneof(randomBookingsArb, deferralBookingsArb, weekendBoundaryArb)
-  .chain(([bookings, w]) => fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2)));
+  .chain(([bookings, w]) => fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2, 1)));

@@ -10,17 +10,24 @@ import {
 } from './planning-week.js';
 import type { SchedulingConfig } from './scheduling-config.js';
 
-/** R10a: housekeepers available on one date — input to planning, one entry for every day of the week. */
+/**
+ * R10a: housekeepers available on one date — input to planning, one entry for every day of the week.
+ * Regular and reserve housekeepers are counted separately (R10b).
+ */
 export interface Headcount {
   readonly date: LocalDate;
-  readonly available: number;
+  readonly regular: number;
+  readonly reserve: number;
 }
 
-/** R10a: staff needed (Σ requiredCrewSize of the day's candidates) vs available. */
+/** R10a: staff needed (Σ requiredCrewSize of the day's candidates) vs available; R10b: reserve calls made. */
 export interface DayLoad {
   readonly date: LocalDate;
   readonly needed: number;
-  readonly available: number;
+  readonly regular: number;
+  readonly reserve: number;
+  /** R10b: tasks staffed by a reserve housekeeper that day. */
+  readonly reserveCalls: number;
 }
 
 /** NO_STAFF: no housekeeper on any day it still fitted. DEADLINE_PASSED: a carried task that no longer fits (R5g). */
@@ -55,9 +62,10 @@ export interface PlanWeekInput {
 }
 
 /**
- * Plans the week day by day from each day's headcount — R5c–R5g, R10a, invariants 1, 8, 9, 14, 15, 16.
+ * Plans the week day by day from each day's headcount — R5c–R5g, R10a, R10b, invariants 1, 8, 9, 14–17, 19.
  * A day's candidates (that day's departures + tasks still waiting, incl. carried-in ones) are staffed in priority
- * order (R5d); the rest wait for the next day while they still fit before their deadline, otherwise go to shortfall.
+ * order (R5d) by the regular housekeepers; the rest wait for the next day while they still fit before their deadline,
+ * otherwise go to a reserve housekeeper while one is free (R10b), else to shortfall.
  * On Saturday and Sunday only tasks that cannot wait until Monday are staffed (R5f).
  * After the last day, waiting tasks are carried over to the next week (R5g).
  * Throws on invalid input (headcount missing / duplicated / not an integer ≥ 0, task departing outside the week,
@@ -70,7 +78,7 @@ export function planWeek({
   config,
   carriedOver = [],
 }: PlanWeekInput): WeekPlan {
-  const availableOn = validHeadcount(headcount, week);
+  const staffOn = validHeadcount(headcount, week);
   const outside = tasks.filter((t) => !contains(week, t.departureDate));
   if (outside.length > 0) {
     throw new Error(
@@ -94,41 +102,69 @@ export function planWeek({
   }
 
   for (const date of daysOf(week)) {
-    const available = availableOn.get(date) ?? 0; // never 0 by default: validHeadcount has checked every day
-    const candidates = [...waiting, ...tasks.filter((t) => t.departureDate === date)].sort(
-      byPriority,
-    );
+    // never 0 by default: validHeadcount has checked every day
+    const { regular, reserve } = staffOn.get(date) ?? { regular: 0, reserve: 0 };
     const next = date === lastDay ? nextWeekStart : addDays(date, 1);
+    const candidates = [...waiting, ...tasks.filter((t) => t.departureDate === date)].sort(
+      byPriorityOn(next, config),
+    );
     waiting = [];
     // R5f: on a weekend day only tasks that cannot wait until Monday are staffed (and needed).
     const weekend = isWeekend(date);
     const monday = followingMonday(date);
     const needsToday = (task: CleaningTask): boolean => !weekend || !fitsOn(task, monday, config);
 
-    let free = available;
+    // R10b: regulars by R5d priority → defer what can wait → reserve for what cannot wait → shortfall.
+    let freeRegular = regular;
+    let freeReserve = reserve;
+    let reserveCalls = 0;
     for (const task of candidates) {
-      if (needsToday(task) && task.requiredCrewSize <= free) {
+      if (needsToday(task) && task.requiredCrewSize <= freeRegular) {
         staffed.push(plannedOn(task, date, config));
-        free -= task.requiredCrewSize;
-      } else if (!fitsOn(task, next, config)) {
-        shortfall.push({ task, reason: 'NO_STAFF', lastPossibleDate: date });
-      } else if (next === nextWeekStart) {
-        carried.push(plannedOn(task, next, config)); // R5g
+        freeRegular -= task.requiredCrewSize;
+      } else if (fitsOn(task, next, config)) {
+        // A task that can wait is deferred (or carried over), never given to the reserve.
+        if (next === nextWeekStart)
+          carried.push(plannedOn(task, next, config)); // R5g
+        else waiting.push(task); // R5c / R5f: deferred, still finishes before the next arrival
+      } else if (task.requiredCrewSize <= freeReserve) {
+        staffed.push(plannedOn(task, date, config)); // R10b: cannot be deferred → reserve call
+        freeReserve -= task.requiredCrewSize;
+        reserveCalls += 1;
       } else {
-        waiting.push(task); // R5c / R5f: deferred, still finishes before the next arrival
+        shortfall.push({ task, reason: 'NO_STAFF', lastPossibleDate: date });
       }
     }
-    days.push({ date, needed: sumCrew(candidates.filter(needsToday)), available });
+    days.push({
+      date,
+      needed: sumCrew(candidates.filter(needsToday)),
+      regular,
+      reserve,
+      reserveCalls,
+    });
   }
 
   return { tasks: staffed, days, shortfall, carriedOver: carried };
 }
 
 /**
- * R5d: earliest deadline first, no deadline last; ties by cottage number (lowest first), then departure date.
- * Total order on distinct tasks, so the input order never changes the plan (invariant 7).
+ * R5d: tasks that cannot be deferred to `next` come first, then the ones that can (invariant 19); within each group
+ * `byDeadline`. Total order on distinct tasks, so the input order never changes the plan (invariant 7).
  */
-function byPriority(a: CleaningTask, b: CleaningTask): number {
+function byPriorityOn(
+  next: LocalDate,
+  config: SchedulingConfig,
+): (a: CleaningTask, b: CleaningTask) => number {
+  return (a, b) => {
+    const aWaits = fitsOn(a, next, config);
+    const bWaits = fitsOn(b, next, config);
+    if (aWaits !== bWaits) return aWaits ? 1 : -1;
+    return byDeadline(a, b);
+  };
+}
+
+/** R5d within a group: earliest deadline first, no deadline last; ties by cottage number, then departure date. */
+function byDeadline(a: CleaningTask, b: CleaningTask): number {
   if (a.deadline !== b.deadline) {
     if (a.deadline === undefined) return 1;
     if (b.deadline === undefined) return -1;
@@ -166,19 +202,22 @@ function plannedOn(task: CleaningTask, date: LocalDate, config: SchedulingConfig
   };
 }
 
-/** R10a: every day of the week exactly once, an integer ≥ 0; otherwise the input is rejected, listing the dates. */
+/**
+ * R10a: every day of the week exactly once, `regular` and `reserve` each an integer ≥ 0 (a missing number is invalid,
+ * never 0); otherwise the input is rejected, listing the dates.
+ */
 function validHeadcount(
   headcount: readonly Headcount[],
   week: PlanningWeek,
-): ReadonlyMap<LocalDate, number> {
+): ReadonlyMap<LocalDate, Headcount> {
   const inWeek = headcount.filter((h) => contains(week, h.date));
-  const byDate = new Map(inWeek.map((h) => [h.date, h.available]));
+  const byDate = new Map(inWeek.map((h) => [h.date, h]));
 
   const days = daysOf(week);
   const missing = days.filter((d) => !byDate.has(d));
   const duplicated = days.filter((d) => inWeek.filter((h) => h.date === d).length > 1);
   const invalid = inWeek
-    .filter((h) => !Number.isInteger(h.available) || h.available < 0)
+    .filter((h) => !isCount(h.regular) || !isCount(h.reserve))
     .map((h) => h.date);
 
   const problems = [
@@ -212,6 +251,9 @@ function validCarriedOver(carriedOver: readonly CleaningTask[], week: PlanningWe
 
 const describe = (t: CleaningTask): string =>
   `cottage ${String(t.cottageNumber)} on ${t.departureDate}`;
+
+/** An integer ≥ 0. `undefined` (a missing number in untyped input) is not a count. */
+const isCount = (n: number): boolean => Number.isInteger(n) && n >= 0;
 
 const sumCrew = (tasks: readonly CleaningTask[]): number =>
   tasks.reduce((sum, t) => sum + t.requiredCrewSize, 0);

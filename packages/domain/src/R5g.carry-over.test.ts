@@ -13,6 +13,7 @@ import {
   stay,
   turnover,
   weekArb,
+  weekBoundaryTwoWeekScenarioArb,
 } from './test-fixtures.js';
 
 const cottages = seedCottages();
@@ -93,7 +94,13 @@ describe('R5g — carry-over', () => {
       plannedDate: '2026-11-24',
       deferred: true,
     });
-    expect(second.days[0]).toEqual({ date: '2026-11-23', needed: 3, available: 2 });
+    expect(second.days[0]).toEqual({
+      date: '2026-11-23',
+      needed: 3,
+      regular: 2,
+      reserve: 0,
+      reserveCalls: 0,
+    });
   });
 
   it('R5g: a carried task that can no longer be finished on the first day goes to shortfall as DEADLINE_PASSED', () => {
@@ -158,12 +165,20 @@ describe('R5g — properties', () => {
   it('invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once', () => {
     fc.assert(
       fc.property(
-        fc.array(bookingArb(), { maxLength: 40 }),
-        weekArb.chain((w) => {
-          const w2 = { start: addDays(w.start, 7) };
-          return fc.tuple(fc.constant(w), headcountArb(w, 2), fc.constant(w2), headcountArb(w2, 2));
-        }),
-        (bookings, [w1, h1, w2, h2]) => {
+        fc.oneof(
+          fc.tuple(fc.array(bookingArb(), { maxLength: 40 }), weekArb).chain(([bookings, w]) => {
+            const w2 = { start: addDays(w.start, 7) };
+            return fc.tuple(
+              fc.constant(bookings),
+              fc.constant(w),
+              headcountArb(w, 2, 1),
+              fc.constant(w2),
+              headcountArb(w2, 2, 1),
+            );
+          }),
+          weekBoundaryTwoWeekScenarioArb, // Sunday overflow, carried tasks that cannot wait on Monday (R10b)
+        ),
+        ([bookings, w1, h1, w2, h2]) => {
           const tasks1 = deriveCleaningTasks(bookings, cottages, w1, config);
           const p1 = planWeek({ tasks: tasks1, headcount: h1, week: w1, config });
           const tasks2 = deriveCleaningTasks(bookings, cottages, w2, config);
@@ -181,11 +196,14 @@ describe('R5g — properties', () => {
           ] as const) {
             const placed = [...p.tasks, ...p.shortfall.map((s) => s.task), ...p.carriedOver];
             expect(placed.map(key).sort()).toEqual(input.map(key).sort());
-            for (const { date, available } of h) {
+            for (const { date, regular, reserve } of h) {
               const used = p.tasks
                 .filter((t) => t.plannedDate === date)
                 .reduce((sum, t) => sum + t.requiredCrewSize, 0);
-              expect(used).toBeLessThanOrEqual(available);
+              expect(used).toBeLessThanOrEqual(regular + reserve);
+              expect(p.days.find((d) => d.date === date)?.reserveCalls).toBeLessThanOrEqual(
+                reserve,
+              );
             }
             for (const t of p.carriedOver) {
               expect(t.deferred).toBe(true);
