@@ -31,3 +31,9 @@ hidden state between weeks.
   shortfall too, so a shortfall can be found in either step.
 - Trade-off: callers must store `carriedOver` and pass it back for the next week. Reconciling it with work actually
   done is in the backlog (domain-model §8, R13–R15).
+
+## Follow-up (2026-11-23)
+The crew rules changed (domain-model v0.4): PAIR_ONLY is dropped, any housekeeper cleans any cottage alone (R7). The
+trade-off above about a missing premium crew no longer applies. The decision stands: by R10b the headcount has two numbers
+per day, regular and reserve, and the reserve is called only for tasks that cannot be deferred. Who cleans what
+(stable first, R7a; which reserve is called, R10b) remains the assignment step.
