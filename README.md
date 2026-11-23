@@ -50,3 +50,6 @@ The working agreement lives in the repo:
 - [.claude/hooks](.claude/hooks) — a guard that blocks `git push` and hook bypasses in Claude Code's Bash commands. It
   exists because permission rules only match text: `git -C . push` slips past a `git push *` deny rule.
 - [docs/test-strategy.md](docs/test-strategy.md) — test levels, principles and the test naming convention.
+
+Dependency updates come via Dependabot ([.github/dependabot.yml](.github/dependabot.yml)) and go through the same CI
+gate as every other change.

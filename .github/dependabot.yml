@@ -1,0 +1,20 @@
+version: 2
+updates:
+  # pnpm workspace: Dependabot reads pnpm-workspace.yaml and pnpm-lock.yaml from the root.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      # minor and patch updates of devDependencies arrive as one PR;
+      # major updates are not grouped, so each one gets its own PR.
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
