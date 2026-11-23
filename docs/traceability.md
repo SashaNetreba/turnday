@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 14 of 24 covered
-- Invariants: 11 of 17 covered
+- Rules: 14 of 25 covered
+- Invariants: 11 of 18 covered
 
 ## NOT COVERED
 
-- Rules: R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
-- Invariants: 2, 3, 4, 4a, 6, 10
+- Rules: R7, R7a, R8, R9, R10, R10b, R11, R12, R13, R14, R15
+- Invariants: 2, 3, 4, 6, 10, 17, 18
 
 ## Rules
 
@@ -32,12 +32,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5f Weekend | 9 | covered |
 | R5g Carry-over | 8 | covered |
 | R6 Default crew size | 2 | covered |
-| R7 Premium crew | 0 | **NOT COVERED** |
-| R7a Solo preferred for premium | 0 | **NOT COVERED** |
+| R7 Any housekeeper, any cottage | 0 | **NOT COVERED** |
+| R7a Stable first | 0 | **NOT COVERED** |
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
 | R9 One clean per housekeeper per day | 0 | **NOT COVERED** |
 | R10 Unavailable days | 0 | **NOT COVERED** |
 | R10a Shortfall | 9 | covered |
+| R10b Reserve | 0 | **NOT COVERED** |
 | R11 Even distribution | 0 | **NOT COVERED** |
 | R12 Weekend rotation | 0 | **NOT COVERED** |
 | R13 Own assignment, today only | 0 | **NOT COVERED** |
@@ -52,7 +53,6 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 2 | 0 | **NOT COVERED** |
 | 3 | 0 | **NOT COVERED** |
 | 4 | 0 | **NOT COVERED** |
-| 4a | 0 | **NOT COVERED** |
 | 5 | 1 | covered |
 | 6 | 0 | **NOT COVERED** |
 | 7 | 1 | covered |
@@ -65,6 +65,8 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 14 | 2 | covered |
 | 15 | 1 | covered |
 | 16 | 1 | covered |
+| 17 | 0 | **NOT COVERED** |
+| 18 | 0 | **NOT COVERED** |
 
 ## Rules → tests
 

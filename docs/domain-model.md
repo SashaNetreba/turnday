@@ -1,6 +1,6 @@
 # Domain Model — Housekeeping Scheduler
 
-> Status: **v0.3 — ready for implementation** · Owner: Oleksandra Netreba
+> Status: **v0.4 — ready for implementation** · Owner: Oleksandra Netreba
 > This document describes the business domain independently of any framework, database or UI.
 > Everything here lives in `packages/domain` and is covered by unit and property-based tests.
 
@@ -34,10 +34,13 @@ Goals:
 | **Housekeeper** | A team member who cleans cottages. |
 | **Shift** | One housekeeper working on one date. |
 | **Assignment** | A housekeeper assigned to a cleaning task on a date. |
-| **Crew** | The housekeepers assigned to one cleaning task (1 by default, 2 for premium or extra-dirty). |
+| **Crew** | The housekeepers assigned to one cleaning task (1 by default, 2 when the manager raises it, R8). |
 | **Weekend rotation** | Fair turn-taking for Saturday/Sunday shifts. |
 | **Time entry** | Actual start/stop recorded by a housekeeper for an assignment. |
-| **Headcount** | Number of housekeepers available on a date — input to planning (R10a). |
+| **Headcount** | Regular and reserve housekeepers available on a date, counted separately — input to planning (R10a, R10b). |
+| **Regular housekeeper** | A housekeeper who is not a reserve. |
+| **Reserve housekeeper** | Called only for a task that cannot wait (R10b). |
+| **Reserve call** | An assignment to a reserve housekeeper; the manager confirms it (R10b). |
 | **Workday start** | Time housekeepers start work; the start of a deferred task's window (R5c). |
 | **Deferral** | Cleaning a task on a later day than its departure (R5c). |
 | **Shortfall** | A task that cannot be staffed before its deadline — reported, never dropped (R10a). |
@@ -72,10 +75,12 @@ TimeOverride                  # R5a: set by the manager in the app, survives CSV
 Housekeeper
   id
   displayName
-  premiumMode: SOLO | PAIR_ONLY   # PAIR_ONLY = cleans premium only together with the other PAIR_ONLY housekeeper
+  stableFirst: boolean        # R7a, set by the manager
+  reserve: boolean            # R10b, set by the manager; both flags on one housekeeper → invalid input
   active: boolean
 
-Availability                  # entered by the manager only
+Availability                  # one entry per housekeeper per day, reserves included;
+                              # how it is entered is not a domain concern (§8 backlog)
   housekeeperId
   date
   available: boolean          # days off, holidays, sickness
@@ -88,7 +93,7 @@ CleaningTask                  # derived from bookings, never entered manually
   plannedDate                 # when it is cleaned (= departureDate, or later if deferred, R5c)
   deferred: boolean           # ⇔ plannedDate > departureDate (invariant 15)
   estimatedMinutes: int
-  requiredCrewSize: 1 | 2     # R6: always 1 for now; R7a / R8 raise it later
+  requiredCrewSize: 1 | 2     # R6: always 1; only R8 raises it
   earliestStart: datetime     # local wall-clock YYYY-MM-DDTHH:MM: departure date + checkout time (incl. late checkout)
   deadline?: datetime         # local wall-clock: next arrival into this cottage + check-in time (incl. early check-in);
                               # empty if no next arrival is known
@@ -104,12 +109,15 @@ SchedulingConfig              # passed into the domain, never hard-coded there
 
 Headcount                     # R10a: input to planning, one entry for every day of the planning week
   date
-  available: int >= 0         # housekeepers available that day (derived from Housekeeper + Availability with R10)
+  regular: int >= 0           # regular housekeepers available that day (derived from Housekeeper + Availability with R10)
+  reserve: int >= 0           # reserve housekeepers available that day (R10b)
 
-WeekPlan                      # output of planning one week (R5c–R5g, R10a)
+WeekPlan                      # output of planning one week (R5c–R5g, R10a, R10b)
   tasks: [CleaningTask]       # staffed, plannedDate within the week
-  days: [{ date, needed, available }]   # needed = Σ requiredCrewSize of that day's candidates;
-                                        # on Sat/Sun only those that cannot wait until Monday (R5f)
+  days: [{ date, needed, regular, reserve, reserveCalls }]
+                              # needed = Σ requiredCrewSize of that day's candidates;
+                              # on Sat/Sun only those that cannot wait until Monday (R5f)
+                              # reserveCalls = tasks staffed by a reserve that day (R10b)
   shortfall: [{ task, reason: NO_STAFF | DEADLINE_PASSED, lastPossibleDate? }]
                               # lastPossibleDate (NO_STAFF): last day the task could still have been cleaned
   carriedOver: [CleaningTask] # still waiting after the week's last day → input to the next week (R5g)
@@ -118,6 +126,7 @@ Assignment
   taskId
   housekeeperIds: [id]        # crew
   manualOverride: boolean     # e.g. manager added a 2nd person because it's very dirty
+  needsReserveCall: boolean   # R10b: the crew includes a reserve; the manager confirms the call
 
 TimeEntry
   assignmentId
@@ -199,7 +208,7 @@ TimeEntry
   - Zero slack (window = estimate) is **tight** but not at risk. Every at-risk task is also tight.
   - A **negative window** (e.g. late checkout 15:00 and the next guest's early check-in 12:00 the same day) keeps the task
     with its true times; it is at risk and tight. An at-risk task is **never silently dropped**.
-  - Suggesting a crew of 2 for an at-risk task belongs to the crew rules (R6/R7a), which read `atRisk`.
+  - A crew of 2 for an at-risk task is set by the manager (R8); planning does not raise it.
 
 ### Deferral
 - **R5c. Deferral.** Tasks are planned day by day through the planning week. A day's **candidates** are the tasks
@@ -254,12 +263,26 @@ TimeEntry
 
 ### Crew
 - **R6. Default crew size.** Default crew size is 1 (one housekeeper — one cottage), for stable **and** premium. Every task gets
-  `requiredCrewSize = 1`; R7a and R8 may raise it.
-- **R7. Premium crew.** Premium crew is either:
-  - **one** housekeeper with `premiumMode = SOLO`, or
-  - **the two** housekeepers with `premiumMode = PAIR_ONLY`, together.
-  A `PAIR_ONLY` housekeeper is never assigned to premium alone or with anyone else. They clean stable cottages normally.
-- **R7a. Solo preferred for premium.** The algorithm prefers a solo crew for premium (one person per cottage). The `PAIR_ONLY` pair is used for premium only when no solo-capable housekeeper is free, or for a **tight** task.
+  `requiredCrewSize = 1`; only R8 may raise it.
+- **R7. Any housekeeper, any cottage.** A housekeeper cleans any cottage alone, stable or premium (crew of 1, R6).
+  There is no pair-only rule.
+- **R7a. Stable first.** Applies after the day's cleaned tasks are decided (R5d, R5c, R10b).
+  - Among the stable tasks cleaned today, a working housekeeper with `stableFirst` gets the one with **no arrival
+    today**; if every one has an arrival today, the one with the **latest deadline**.
+  - She is given a premium task only when no other regular housekeeper is free for it — but she still comes before any
+    reserve housekeeper (R10b).
+  - Her preference never changes which tasks are cleaned today: it never causes a task with an arrival today to need
+    the reserve, to be deferred or to go to shortfall.
+  - Several `stableFirst` housekeepers working the same day each get a stable task first by the same rule. If there
+    are not enough stable tasks, the one with the fewest shifts this week takes the premium task; ties by lowest id.
+  Examples (cottages 1–10 stable; 11, 12, 15 premium):
+  - Monday: departures 11, 12, 15, all with arrivals today, no stable departures. The `stableFirst` housekeeper and two
+    other regulars work → the two others take 11 and 12, she takes 15. The reserve is not called.
+  - Monday: departures 3 (stable) and 11 (premium). The `stableFirst` housekeeper and one other regular work → she gets
+    3, the other gets 11.
+  - Monday: departures 3 (stable, arrival today), 5 (stable, no arrival today) and 11 (premium, arrival today). The
+    `stableFirst` housekeeper and one other regular work → 5 is deferred to Tuesday (R5d), she gets 3, the other gets 11.
+    The reserve is not called.
 - **R8. Manual crew of 2.** The manager can manually raise any task's crew to 2 (e.g. very dirty) — this is a `manualOverride` and is preserved when the schedule is regenerated.
 
 ### Capacity
@@ -274,10 +297,25 @@ TimeEntry
   **Staff needed on a day** = Σ `requiredCrewSize` of that day's candidates (R5c). Weekend counting: see R5f.
   If staff needed > staff available, the schedule is still produced, and every task that can be neither staffed nor
   deferred is listed in the **shortfall** report — never silently dropped.
+  The headcount gives `regular` and `reserve` separately for each day (R10b); the checks above apply to both numbers.
+- **R10b. Reserve.** A housekeeper with `reserve` is used only for a task that **cannot be deferred** (R5c), and only
+  after all available regular housekeepers have a task. A task that can wait is deferred instead of calling the
+  reserve. If no reserve is available either, the task goes to the shortfall (R10a).
+  - Order each day: regular housekeepers by R5d priority → defer what can wait → reserve for what cannot wait →
+    shortfall.
+  - Weekends follow the same rule (R5f): a reserve is called only for a task that cannot wait.
+  - With two or more reserves available, the one with the **fewest shifts this week** is called; ties by lowest id.
+  - Reserve availability is an input per day like any housekeeper's. A task assigned to a reserve is marked
+    `needsReserveCall` so the manager confirms it.
+  Examples:
+  - Monday: 5 regulars work, 6 departures; cottage 2 has no arrival today, the other five have arrivals today → five
+    cottages get regulars, cottage 2 is deferred to Tuesday. The reserve is not called.
+  - Same, but all 6 cottages have arrivals today → five get regulars, the sixth gets the reserve. If no reserve is
+    available → shortfall.
 
 ### Fairness
-- **R11. Even distribution.** Over a week, shifts are distributed as evenly as possible across active housekeepers (difference between most and least loaded ≤ 1 shift where availability allows).
-- **R12. Weekend rotation.** Weekend shifts follow a **rotation**: the housekeepers with the fewest weekend shifts in the rolling history are picked first; ties broken by longest time since last weekend shift.
+- **R11. Even distribution.** Over a week, shifts are distributed as evenly as possible across active **regular** housekeepers — reserves are excluded (R10b) (difference between most and least loaded ≤ 1 shift where availability allows).
+- **R12. Weekend rotation.** Weekend shifts of **regular** housekeepers follow a **rotation** — reserves are excluded (R10b): the housekeepers with the fewest weekend shifts in the rolling history are picked first; ties broken by longest time since last weekend shift.
 
 ### Time tracking
 - **R13. Own assignment, today only.** A housekeeper can only start a time entry for their own assignment on the current date.
@@ -301,17 +339,17 @@ TimeEntry
 For any randomly generated week of bookings and availability, the generated schedule must satisfy:
 
 1. Every task is in exactly one of: staffed on its `plannedDate`, the shortfall report, or `carriedOver`.
-   On no day does the staffed tasks' Σ `requiredCrewSize` exceed that day's headcount.
+   On no day does the staffed tasks' Σ `requiredCrewSize` exceed that day's `regular + reserve`, and on no day does
+   `reserveCalls` exceed `reserve`.
 2. No housekeeper is assigned on an unavailable day.
 3. No housekeeper has more than one task per day.
-4. Every premium task's crew is either one `SOLO` housekeeper or exactly the two `PAIR_ONLY` housekeepers.
-4a. No `PAIR_ONLY` housekeeper appears on a premium task in any other combination.
+4. Without a manual override (R8), every task's crew is exactly one housekeeper, whatever the cottage type (R7).
 5. No task exists for a non-schedulable or non-existent cottage.
 6. Regenerating the schedule keeps all manual overrides.
 7. Generation is deterministic: same input → same schedule.
 8. No task is planned after its deadline; a task that cannot meet it appears in the shortfall/at-risk report.
 9. A task is deferred only if, on every day from its `departureDate` up to the day before its `plannedDate`, either
-   no housekeeper was left for it (R5d) or it was a weekend day the task could wait through (R5f). A task with a
+   no **regular** housekeeper was left for it (R5d) or it was a weekend day the task could wait through (R5f). A task with a
    same-day arrival is never deferred.
 10. Re-importing the same CSV never removes manager overrides (time overrides, crew overrides).
 11. At most one `DEPARTURE` task per cottage per day.
@@ -323,6 +361,10 @@ For any randomly generated week of bookings and availability, the generated sche
     tight; a task with a negative window is at risk; a deferred task is never at risk.
 15. `deferred` ⇔ `plannedDate > departureDate`. Planning never changes `departureDate` or `earliestStart`.
 16. A task is planned on a Saturday or Sunday only if it cannot wait until the following Monday (R5f).
+17. A reserve is used on a day only when every available regular housekeeper has a task, and only for tasks that
+    cannot be deferred (R10b).
+18. `stableFirst` flags never change which tasks are staffed, deferred or in shortfall: the plan with and without them
+    differs only in who cleans what (R7a).
 
 ---
 
@@ -330,7 +372,7 @@ For any randomly generated week of bookings and availability, the generated sche
 
 Resolved:
 
-- [x] **Premium crew:** one person normally; two specific housekeepers clean premium only together → R7.
+- [x] **Crews:** one housekeeper per task, any cottage; stable-first and reserve flags → R7, R7a, R10b.
 - [x] **Stayovers:** not cleaned → R2.
 - [x] **Check-in time:** 16:00 → R5.
 - [x] **Capacity:** one cottage per person per day → R9 (derived).
@@ -392,5 +434,6 @@ Backlog:
 - [ ] API **warns** when saving an override that gives a task a negative window (R5b).
 - [ ] Reconcile carried-over tasks (R5g) with actual completion data from time tracking (R13–R15): a task cleaned
       anyway, or cleaned late, should not be carried again.
-- [ ] When crew size 2 exists (R7a / R8), the deferral check (R5c) should use the crew-adjusted duration — e.g. premium
-      with early check-in 14:00 fits on its arrival day with a crew of 2 — so that shortfall case becomes a deferral with crew 2.
+- [ ] When the manager raises a crew to 2 (R8), the deferral check (R5c) should use the crew-adjusted duration — e.g.
+      premium with early check-in 14:00 fits on its arrival day with a crew of 2.
+- [ ] API: housekeepers may enter their own availability; a manager entry for the same housekeeper and date wins.
