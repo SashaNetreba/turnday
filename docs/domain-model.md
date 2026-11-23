@@ -228,14 +228,21 @@ TimeEntry
     By the deferral condition a deferred task is **never at risk**; with zero slack it is tight.
   - So a task is deferred only when its departure day had no housekeeper left for it (R5d) or was a weekend day it
     could wait through (R5f), and only while it can still be finished before the next arrival.
-- **R5d. Priority.** A day's candidates are ordered by **deadline, earliest first**, tasks without a deadline last; ties
-  by **cottage number, lowest first**, then by departure date. The same order decides who is staffed and who waits:
-  - a task with a same-day arrival is staffed before any task that can wait (it has the day's earliest deadline);
+- **R5d. Priority.** A day's candidates are ordered in two groups: first the tasks that **cannot be deferred** to the
+  next day (R5c), then the tasks that can. Within each group by **deadline, earliest first**, tasks without a deadline
+  last; ties by **cottage number, lowest first**, then by departure date. The same order decides who is staffed and
+  who waits:
+  - a task with a same-day arrival is staffed before any task that can wait (it cannot be deferred);
+  - a task that can wait never takes a housekeeper from a task that cannot, even when its deadline is earlier
+    (stable and premium estimates differ);
   - on a short day the tasks that can wait longest move: no deadline first, then the latest deadline; on a tie the
     higher cottage number moves;
   - when even the tasks that cannot wait don't all fit, the ones with the latest deadline go to shortfall.
+  Example: one housekeeper on Monday; cottage 3 (stable) and 11 (premium) depart Monday, next arrivals Tuesday 14:35
+  and 14:50. 3 fits on Tuesday (10:00 + 270 = 14:30 ≤ 14:35), 11 does not (10:00 + 300 = 15:00 > 14:50) → 11 is
+  cleaned on Monday, 3 is deferred to Tuesday, no shortfall.
 - **R5e. Deferred tasks on the new day.** Deferred tasks compete with that day's own tasks in the same order (R5d) — no separate
-  queue. A deferred task does not jump ahead of a task with an earlier deadline.
+  queue. A deferred task does not jump ahead of a task with an earlier deadline in its group.
   Example: Monday's cottage 3 (next arrival Wednesday 16:00) is deferred to Tuesday. On Tuesday it competes for the last
   housekeeper with cottage 6, which departs Tuesday and has an arrival Tuesday 16:00 → 6 is staffed; 3 moves to
   Wednesday (10:00 + 270 = 14:30 ≤ 16:00).
@@ -365,6 +372,8 @@ For any randomly generated week of bookings and availability, the generated sche
     cannot be deferred (R10b).
 18. `stableFirst` flags never change which tasks are staffed, deferred or in shortfall: the plan with and without them
     differs only in who cleans what (R7a).
+19. On any day, if a task that cannot be deferred goes to the shortfall, no task that could have been deferred was
+    staffed that day (R5d).
 
 ---
 

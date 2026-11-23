@@ -8,7 +8,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ## Summary
 
 - Rules: 14 of 25 covered
-- Invariants: 11 of 18 covered
+- Invariants: 12 of 19 covered
 
 ## NOT COVERED
 
@@ -27,7 +27,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5a Late checkout / early check-in | 17 | covered |
 | R5b At risk | 6 | covered |
 | R5c Deferral | 10 | covered |
-| R5d Priority | 3 | covered |
+| R5d Priority | 5 | covered |
 | R5e Deferred tasks on the new day | 1 | covered |
 | R5f Weekend | 9 | covered |
 | R5g Carry-over | 8 | covered |
@@ -67,6 +67,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 16 | 1 | covered |
 | 17 | 0 | **NOT COVERED** |
 | 18 | 0 | **NOT COVERED** |
+| 19 | 1 | covered |
 
 ## Rules → tests
 
@@ -160,7 +161,9 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ### R5d Priority
 
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 19 / R5d: when a task that cannot be deferred goes to shortfall, no task that could be deferred was staffed that day
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 7 / R5d: the same tasks in any order give the same plan
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: a task that cannot be deferred is staffed before one that can, even with a later deadline
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: on Sunday the only free housekeeper goes to the cottage with a same-day arrival (7), not the lowest number (2)
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5d — priority › R5d: on a short day the tasks that can wait longest move first; on a tie the higher cottage number moves
 
@@ -258,6 +261,10 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### Invariant 16
 
 - packages/domain/src/R5f.weekend.test.ts › R5f — properties › invariant 16 / R5f: a task is planned on a Saturday or Sunday only if it cannot wait until the following Monday
+
+### Invariant 19
+
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 19 / R5d: when a task that cannot be deferred goes to shortfall, no task that could be deferred was staffed that day
 
 ## Unknown references
 

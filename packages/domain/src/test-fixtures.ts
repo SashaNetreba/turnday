@@ -250,6 +250,81 @@ const weekendBoundaryArb = weekArb.chain((w) => {
     ]);
 });
 
+/** A departure for `nextDayBoundaryScenarioArb`: next guest the next day at `next` minutes past midnight, or none. */
+interface BoundaryDeparture {
+  readonly cottage: number;
+  readonly outOffset: number;
+  readonly next: number | 'SAME_DAY' | 'NONE';
+}
+
+const hhmm = (minutes: number): LocalTime =>
+  localTime(
+    `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`,
+  );
+
+/**
+ * Focused on the R5d groups (invariant 19), Monday–Sunday week. Every scenario has a boundary pair departing the same
+ * day (Mon–Sat): a stable cottage whose next guest arrives the next day at 14:30–14:50 (fits the next day: 10:00 +
+ * 270 = 14:30) and a premium cottage arriving later but before 15:00 (does not fit: 10:00 + 300 = 15:00) — the
+ * stable one has the earlier deadline but can wait. Plus up to 4 other departures (next-day check-in 14:00–15:00,
+ * same-day arrival or none) and headcount 0–2 per day, so short days are common.
+ */
+export const nextDayBoundaryScenarioArb: fc.Arbitrary<[Booking[], PlanningWeek, Headcount[]]> = fc
+  .tuple(
+    fc
+      .record({
+        outOffset: fc.integer({ min: 0, max: 5 }),
+        stable: fc.integer({ min: 1, max: 10 }),
+        premium: fc.constantFrom(11, 12, 15),
+        stableStep: fc.integer({ min: 0, max: 4 }), // 14:30–14:50
+        gapSteps: fc.integer({ min: 1, max: 5 }), // premium 5–25 min later, capped below 15:00
+      })
+      .map(({ outOffset, stable, premium, stableStep, gapSteps }): BoundaryDeparture[] => {
+        const stableCheckin = 14 * 60 + 30 + stableStep * 5;
+        const premiumCheckin = Math.min(stableCheckin + gapSteps * 5, 14 * 60 + 55);
+        return [
+          { cottage: stable, outOffset, next: stableCheckin },
+          { cottage: premium, outOffset, next: premiumCheckin },
+        ];
+      }),
+    fc.array(
+      fc.record({
+        cottage: fc.constantFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15),
+        outOffset: fc.integer({ min: 0, max: 6 }),
+        next: fc.oneof(
+          {
+            weight: 2,
+            arbitrary: fc.integer({ min: 0, max: 12 }).map((step) => 14 * 60 + step * 5),
+          },
+          { weight: 1, arbitrary: fc.constantFrom<'SAME_DAY' | 'NONE'>('SAME_DAY', 'NONE') },
+        ),
+      }),
+      { maxLength: 4 },
+    ),
+  )
+  .map(([pair, others]): Booking[] =>
+    [...pair, ...others].flatMap(({ cottage, outOffset, next }, i) => {
+      const out = addDays(propertyBase, outOffset);
+      const leaving = booking(`D${String(i)}`, cottage, addDays(out, -3), out);
+      if (next === 'NONE') return [leaving];
+      if (next === 'SAME_DAY') {
+        return [leaving, booking(`S${String(i)}`, cottage, out, addDays(out, 9))];
+      }
+      const arrival = addDays(out, 1);
+      return [
+        leaving,
+        {
+          ...booking(`N${String(i)}`, cottage, arrival, addDays(arrival, 9)),
+          checkinTime: hhmm(next),
+        },
+      ];
+    }),
+  )
+  .chain((bookings) => {
+    const w: PlanningWeek = { start: propertyBase };
+    return fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2));
+  });
+
 export const planningScenarioArb = fc
   .oneof(randomBookingsArb, deferralBookingsArb, weekendBoundaryArb)
   .chain(([bookings, w]) => fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2)));

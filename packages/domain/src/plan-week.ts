@@ -95,10 +95,10 @@ export function planWeek({
 
   for (const date of daysOf(week)) {
     const available = availableOn.get(date) ?? 0; // never 0 by default: validHeadcount has checked every day
-    const candidates = [...waiting, ...tasks.filter((t) => t.departureDate === date)].sort(
-      byPriority,
-    );
     const next = date === lastDay ? nextWeekStart : addDays(date, 1);
+    const candidates = [...waiting, ...tasks.filter((t) => t.departureDate === date)].sort(
+      byPriorityOn(next, config),
+    );
     waiting = [];
     // R5f: on a weekend day only tasks that cannot wait until Monday are staffed (and needed).
     const weekend = isWeekend(date);
@@ -125,10 +125,23 @@ export function planWeek({
 }
 
 /**
- * R5d: earliest deadline first, no deadline last; ties by cottage number (lowest first), then departure date.
- * Total order on distinct tasks, so the input order never changes the plan (invariant 7).
+ * R5d: tasks that cannot be deferred to `next` come first, then the ones that can (invariant 19); within each group
+ * `byDeadline`. Total order on distinct tasks, so the input order never changes the plan (invariant 7).
  */
-function byPriority(a: CleaningTask, b: CleaningTask): number {
+function byPriorityOn(
+  next: LocalDate,
+  config: SchedulingConfig,
+): (a: CleaningTask, b: CleaningTask) => number {
+  return (a, b) => {
+    const aWaits = fitsOn(a, next, config);
+    const bWaits = fitsOn(b, next, config);
+    if (aWaits !== bWaits) return aWaits ? 1 : -1;
+    return byDeadline(a, b);
+  };
+}
+
+/** R5d within a group: earliest deadline first, no deadline last; ties by cottage number, then departure date. */
+function byDeadline(a: CleaningTask, b: CleaningTask): number {
   if (a.deadline !== b.deadline) {
     if (a.deadline === undefined) return 1;
     if (b.deadline === undefined) return -1;
