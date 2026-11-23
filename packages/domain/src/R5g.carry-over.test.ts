@@ -93,7 +93,13 @@ describe('R5g — carry-over', () => {
       plannedDate: '2026-11-24',
       deferred: true,
     });
-    expect(second.days[0]).toEqual({ date: '2026-11-23', needed: 3, available: 2 });
+    expect(second.days[0]).toEqual({
+      date: '2026-11-23',
+      needed: 3,
+      regular: 2,
+      reserve: 0,
+      reserveCalls: 0,
+    });
   });
 
   it('R5g: a carried task that can no longer be finished on the first day goes to shortfall as DEADLINE_PASSED', () => {
@@ -181,11 +187,14 @@ describe('R5g — properties', () => {
           ] as const) {
             const placed = [...p.tasks, ...p.shortfall.map((s) => s.task), ...p.carriedOver];
             expect(placed.map(key).sort()).toEqual(input.map(key).sort());
-            for (const { date, available } of h) {
+            for (const { date, regular, reserve } of h) {
               const used = p.tasks
                 .filter((t) => t.plannedDate === date)
                 .reduce((sum, t) => sum + t.requiredCrewSize, 0);
-              expect(used).toBeLessThanOrEqual(available);
+              expect(used).toBeLessThanOrEqual(regular + reserve);
+              expect(p.days.find((d) => d.date === date)?.reserveCalls).toBeLessThanOrEqual(
+                reserve,
+              );
             }
             for (const t of p.carriedOver) {
               expect(t.deferred).toBe(true);

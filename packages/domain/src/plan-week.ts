@@ -10,17 +10,24 @@ import {
 } from './planning-week.js';
 import type { SchedulingConfig } from './scheduling-config.js';
 
-/** R10a: housekeepers available on one date — input to planning, one entry for every day of the week. */
+/**
+ * R10a: housekeepers available on one date — input to planning, one entry for every day of the week.
+ * Regular and reserve housekeepers are counted separately (R10b).
+ */
 export interface Headcount {
   readonly date: LocalDate;
-  readonly available: number;
+  readonly regular: number;
+  readonly reserve: number;
 }
 
-/** R10a: staff needed (Σ requiredCrewSize of the day's candidates) vs available. */
+/** R10a: staff needed (Σ requiredCrewSize of the day's candidates) vs available; R10b: reserve calls made. */
 export interface DayLoad {
   readonly date: LocalDate;
   readonly needed: number;
-  readonly available: number;
+  readonly regular: number;
+  readonly reserve: number;
+  /** R10b: tasks staffed by a reserve housekeeper that day. */
+  readonly reserveCalls: number;
 }
 
 /** NO_STAFF: no housekeeper on any day it still fitted. DEADLINE_PASSED: a carried task that no longer fits (R5g). */
@@ -70,7 +77,7 @@ export function planWeek({
   config,
   carriedOver = [],
 }: PlanWeekInput): WeekPlan {
-  const availableOn = validHeadcount(headcount, week);
+  const staffOn = validHeadcount(headcount, week);
   const outside = tasks.filter((t) => !contains(week, t.departureDate));
   if (outside.length > 0) {
     throw new Error(
@@ -94,7 +101,8 @@ export function planWeek({
   }
 
   for (const date of daysOf(week)) {
-    const available = availableOn.get(date) ?? 0; // never 0 by default: validHeadcount has checked every day
+    // never 0 by default: validHeadcount has checked every day
+    const { regular, reserve } = staffOn.get(date) ?? { regular: 0, reserve: 0 };
     const next = date === lastDay ? nextWeekStart : addDays(date, 1);
     const candidates = [...waiting, ...tasks.filter((t) => t.departureDate === date)].sort(
       byPriorityOn(next, config),
@@ -105,7 +113,7 @@ export function planWeek({
     const monday = followingMonday(date);
     const needsToday = (task: CleaningTask): boolean => !weekend || !fitsOn(task, monday, config);
 
-    let free = available;
+    let free = regular;
     for (const task of candidates) {
       if (needsToday(task) && task.requiredCrewSize <= free) {
         staffed.push(plannedOn(task, date, config));
@@ -118,7 +126,13 @@ export function planWeek({
         waiting.push(task); // R5c / R5f: deferred, still finishes before the next arrival
       }
     }
-    days.push({ date, needed: sumCrew(candidates.filter(needsToday)), available });
+    days.push({
+      date,
+      needed: sumCrew(candidates.filter(needsToday)),
+      regular,
+      reserve,
+      reserveCalls: 0,
+    });
   }
 
   return { tasks: staffed, days, shortfall, carriedOver: carried };
@@ -179,19 +193,22 @@ function plannedOn(task: CleaningTask, date: LocalDate, config: SchedulingConfig
   };
 }
 
-/** R10a: every day of the week exactly once, an integer ≥ 0; otherwise the input is rejected, listing the dates. */
+/**
+ * R10a: every day of the week exactly once, `regular` and `reserve` each an integer ≥ 0 (a missing number is invalid,
+ * never 0); otherwise the input is rejected, listing the dates.
+ */
 function validHeadcount(
   headcount: readonly Headcount[],
   week: PlanningWeek,
-): ReadonlyMap<LocalDate, number> {
+): ReadonlyMap<LocalDate, Headcount> {
   const inWeek = headcount.filter((h) => contains(week, h.date));
-  const byDate = new Map(inWeek.map((h) => [h.date, h.available]));
+  const byDate = new Map(inWeek.map((h) => [h.date, h]));
 
   const days = daysOf(week);
   const missing = days.filter((d) => !byDate.has(d));
   const duplicated = days.filter((d) => inWeek.filter((h) => h.date === d).length > 1);
   const invalid = inWeek
-    .filter((h) => !Number.isInteger(h.available) || h.available < 0)
+    .filter((h) => !isCount(h.regular) || !isCount(h.reserve))
     .map((h) => h.date);
 
   const problems = [
@@ -225,6 +242,9 @@ function validCarriedOver(carriedOver: readonly CleaningTask[], week: PlanningWe
 
 const describe = (t: CleaningTask): string =>
   `cottage ${String(t.cottageNumber)} on ${t.departureDate}`;
+
+/** An integer ≥ 0. `undefined` (a missing number in untyped input) is not a count. */
+const isCount = (n: number): boolean => Number.isInteger(n) && n >= 0;
 
 const sumCrew = (tasks: readonly CleaningTask[]): number =>
   tasks.reduce((sum, t) => sum + t.requiredCrewSize, 0);

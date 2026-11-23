@@ -213,19 +213,22 @@ describe('R5c–R5e — properties', () => {
     );
   });
 
-  it('invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival', () => {
+  it('invariant 9 / R5c: a task is deferred only past days with no regular left or weekend days it could wait through, never with a same-day arrival', () => {
     fc.assert(
       fc.property(planningScenarioArb, ([bookings, w, headcount]) => {
         const { p } = run(bookings, w, headcount);
-        const availableOn = new Map(headcount.map((h) => [h.date, h.available]));
+        const regularOn = new Map(headcount.map((h) => [h.date, h.regular]));
+        const reserveCallsOn = new Map(p.days.map((d) => [d.date, d.reserveCalls]));
         // Carried-over tasks (R5g) are deferred too: every day from departure to the week's last day.
         for (const t of [...p.tasks, ...p.carriedOver].filter((x) => x.deferred)) {
           expect(t.deadline?.slice(0, 10)).not.toBe(t.departureDate);
           for (let d = t.departureDate; d < t.plannedDate; d = addDays(d, 1)) {
-            const used = p.tasks
-              .filter((x) => x.plannedDate === d)
-              .reduce((sum, x) => sum + x.requiredCrewSize, 0);
-            const full = used + t.requiredCrewSize > (availableOn.get(d) ?? 0);
+            // R10b: a free reserve does not count — a task that can wait is deferred, not given to the reserve.
+            const usedByRegulars =
+              p.tasks
+                .filter((x) => x.plannedDate === d)
+                .reduce((sum, x) => sum + x.requiredCrewSize, 0) - (reserveCallsOn.get(d) ?? 0);
+            const full = usedByRegulars + t.requiredCrewSize > (regularOn.get(d) ?? 0);
             const weekendWait = isWeekendDay(d) && canWaitUntilMonday(t, d, config); // R5f
             expect(full || weekendWait).toBe(true);
           }

@@ -305,6 +305,7 @@ TimeEntry
   If staff needed > staff available, the schedule is still produced, and every task that can be neither staffed nor
   deferred is listed in the **shortfall** report — never silently dropped.
   The headcount gives `regular` and `reserve` separately for each day (R10b); the checks above apply to both numbers.
+  A day entry without one of the two numbers is invalid too — a missing `reserve` is never treated as 0.
 - **R10b. Reserve.** A housekeeper with `reserve` is used only for a task that **cannot be deferred** (R5c), and only
   after all available regular housekeepers have a task. A task that can wait is deferred instead of calling the
   reserve. If no reserve is available either, the task goes to the shortfall (R10a).

@@ -37,7 +37,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
 | R9 One clean per housekeeper per day | 0 | **NOT COVERED** |
 | R10 Unavailable days | 0 | **NOT COVERED** |
-| R10a Shortfall | 9 | covered |
+| R10a Shortfall | 11 | covered |
 | R10b Reserve | 0 | **NOT COVERED** |
 | R11 Even distribution | 0 | **NOT COVERED** |
 | R12 Weekend rotation | 0 | **NOT COVERED** |
@@ -157,7 +157,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 14 / R5c: at risk ⇔ deadline − windowStart < estimate; a deferred task is never at risk
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 15 / R5c: deferred ⇔ plannedDate > departureDate; departureDate and earliestStart never change
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 8 / R5c: no deferred task is planned past its deadline; a staffed task that cannot meet it is at risk
-- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past days with no regular left or weekend days it could wait through, never with a same-day arrival
 
 ### R5d Priority
 
@@ -204,8 +204,10 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day given twice in the headcount is rejected, listing the date
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a day with zero staff lists its tasks that cannot wait as shortfall
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a headcount entry without the reserve number is rejected, listing the dates — never treated as 0
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a headcount with missing dates is rejected, listing the dates — never treated as 0
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a negative or non-integer headcount is rejected, listing the dates
+- packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a negative or non-integer reserve number is rejected, listing the dates
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a staffed task stays on its departure day, not deferred
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: a task departing outside the planning week is rejected, not silently dropped
 - packages/domain/src/R10a.shortfall.test.ts › R10a — staff needed vs available, shortfall › R10a: on a short day the tasks that cannot be staffed are listed as shortfall, never dropped
@@ -232,7 +234,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ### Invariant 9
 
-- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past full days or weekend days it could wait through, never with a same-day arrival
+- packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 9 / R5c: a task is deferred only past days with no regular left or weekend days it could wait through, never with a same-day arrival
 
 ### Invariant 11
 

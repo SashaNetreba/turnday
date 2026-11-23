@@ -50,13 +50,22 @@ export function booking(
   };
 }
 
-/** Headcount for every day of `week`: `available` by default, `perDay` overrides by ISO date. */
+/**
+ * Headcount for every day of `week`: `regular` and `reserve` by default; `perDay` overrides by ISO date — a number
+ * overrides `regular`, an object either count.
+ */
 export function headcountFor(
   week: PlanningWeek,
-  available: number,
-  perDay: Readonly<Record<string, number>> = {},
+  regular: number,
+  perDay: Readonly<Record<string, number | { regular?: number; reserve?: number }>> = {},
+  reserve = 0,
 ): Headcount[] {
-  return daysOf(week).map((date) => ({ date, available: perDay[date] ?? available }));
+  return daysOf(week).map((date) => {
+    const day = perDay[date];
+    if (day === undefined) return { date, regular, reserve };
+    if (typeof day === 'number') return { date, regular: day, reserve };
+    return { date, regular: day.regular ?? regular, reserve: day.reserve ?? reserve };
+  });
 }
 
 // ---- Booking scenarios for planning tests ----
@@ -142,11 +151,24 @@ export const weekArb: fc.Arbitrary<PlanningWeek> = fc
   .integer({ min: -3, max: 3 })
   .map((offset) => ({ start: addDays(propertyBase, offset) }));
 
-/** Headcount 0–`max` for every day of `week`. */
-export const headcountArb = (week: PlanningWeek, max = 4): fc.Arbitrary<Headcount[]> =>
+/** Headcount for every day of `week`: regular 0–`max`, reserve 0–`maxReserve`. */
+export const headcountArb = (
+  week: PlanningWeek,
+  max = 4,
+  maxReserve = 0,
+): fc.Arbitrary<Headcount[]> =>
   fc
-    .array(fc.integer({ min: 0, max }), { minLength: 7, maxLength: 7 })
-    .map((counts) => daysOf(week).map((date, i) => ({ date, available: counts[i] ?? 0 })));
+    .array(fc.tuple(fc.integer({ min: 0, max }), fc.integer({ min: 0, max: maxReserve })), {
+      minLength: 7,
+      maxLength: 7,
+    })
+    .map((counts) =>
+      daysOf(week).map((date, i) => ({
+        date,
+        regular: counts[i]?.[0] ?? 0,
+        reserve: counts[i]?.[1] ?? 0,
+      })),
+    );
 
 // ---- Test oracles for the weekend rule (R5f), independent of the domain's date helpers ----
 

@@ -46,7 +46,13 @@ describe('R10a — staff needed vs available, shortfall', () => {
       headcountFor(week, 3, { '2026-11-17': 2 }),
     );
 
-    expect(dayOf(p, '2026-11-17')).toEqual({ date: '2026-11-17', needed: 3, available: 2 });
+    expect(dayOf(p, '2026-11-17')).toEqual({
+      date: '2026-11-17',
+      needed: 3,
+      regular: 2,
+      reserve: 0,
+      reserveCalls: 0,
+    });
     expect(p.tasks.map(key)).toEqual(['2@2026-11-17', '5@2026-11-17']);
     expect(p.shortfall.map((s) => [key(s.task), s.reason, s.lastPossibleDate])).toEqual([
       ['9@2026-11-17', 'NO_STAFF', '2026-11-17'],
@@ -59,7 +65,13 @@ describe('R10a — staff needed vs available, shortfall', () => {
       headcountFor(week, 2, { '2026-11-18': 0 }),
     );
 
-    expect(dayOf(p, '2026-11-18')).toEqual({ date: '2026-11-18', needed: 2, available: 0 });
+    expect(dayOf(p, '2026-11-18')).toEqual({
+      date: '2026-11-18',
+      needed: 2,
+      regular: 0,
+      reserve: 0,
+      reserveCalls: 0,
+    });
     expect(p.tasks).toEqual([]);
     expect(p.shortfall.map((s) => key(s.task))).toEqual(['1@2026-11-18', '11@2026-11-18']);
   });
@@ -72,7 +84,7 @@ describe('R10a — staff needed vs available, shortfall', () => {
 
     expect(p.shortfall).toEqual([]);
     expect(p.tasks).toHaveLength(3);
-    expect(p.days.map((d) => [d.date, d.needed, d.available])).toEqual([
+    expect(p.days.map((d) => [d.date, d.needed, d.regular])).toEqual([
       ['2026-11-16', 2, 2],
       ['2026-11-17', 0, 2],
       ['2026-11-18', 0, 2],
@@ -109,8 +121,29 @@ describe('R10a — staff needed vs available, shortfall', () => {
     expect(() => plan([], headcount)).toThrow(/2026-11-17.*2026-11-19/);
   });
 
+  it('R10a: a headcount entry without the reserve number is rejected, listing the dates — never treated as 0', () => {
+    // Untyped input (e.g. JSON from the API) can lack a field the type requires.
+    const headcount = headcountFor(week, 2).map((h): Headcount =>
+      h.date === '2026-11-18' ? ({ date: h.date, regular: 2 } as unknown as Headcount) : h,
+    );
+
+    expect(() => plan([], headcount)).toThrow(/not an integer ≥ 0 on 2026-11-18$/);
+  });
+
+  it('R10a: a negative or non-integer reserve number is rejected, listing the dates', () => {
+    const headcount = headcountFor(week, 2, {
+      '2026-11-17': { reserve: -1 },
+      '2026-11-19': { reserve: 0.5 },
+    });
+
+    expect(() => plan([], headcount)).toThrow(/not an integer ≥ 0 on 2026-11-17, 2026-11-19$/);
+  });
+
   it('R10a: a day given twice in the headcount is rejected, listing the date', () => {
-    const headcount = [...headcountFor(week, 2), { date: localDate('2026-11-18'), available: 5 }];
+    const headcount = [
+      ...headcountFor(week, 2),
+      { date: localDate('2026-11-18'), regular: 5, reserve: 0 },
+    ];
 
     expect(() => plan([], headcount)).toThrow(/duplicated 2026-11-18/);
   });
@@ -140,11 +173,12 @@ describe('R10a — properties', () => {
             .sort();
           expect(placed).toEqual(tasks.map(key).sort());
 
-          for (const { date, available } of headcount) {
+          for (const { date, regular, reserve } of headcount) {
             const staffed = p.tasks.filter((t) => t.plannedDate === date);
             expect(staffed.reduce((sum, t) => sum + t.requiredCrewSize, 0)).toBeLessThanOrEqual(
-              available,
+              regular + reserve,
             );
+            expect(p.days.find((d) => d.date === date)?.reserveCalls).toBeLessThanOrEqual(reserve);
           }
         },
       ),

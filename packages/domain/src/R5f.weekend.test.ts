@@ -47,7 +47,13 @@ describe('R5f — weekend', () => {
     );
 
     expect(onDay(p, '2026-11-22')).toEqual([7]);
-    expect(dayOf(p, '2026-11-22')).toEqual({ date: '2026-11-22', needed: 1, available: 1 });
+    expect(dayOf(p, '2026-11-22')).toEqual({
+      date: '2026-11-22',
+      needed: 1,
+      regular: 1,
+      reserve: 0,
+      reserveCalls: 0,
+    });
     expect(cottagesOf(p.carriedOver)).toEqual([2, 4, 8]);
     expect(p.shortfall).toEqual([]);
   });
@@ -85,7 +91,13 @@ describe('R5f — weekend', () => {
     const p = plan(stay(3, '2026-11-22', '2026-11-23', '14:30'), headcountFor(week, 1));
 
     expect(p.tasks).toEqual([]);
-    expect(dayOf(p, '2026-11-22')).toEqual({ date: '2026-11-22', needed: 0, available: 1 });
+    expect(dayOf(p, '2026-11-22')).toEqual({
+      date: '2026-11-22',
+      needed: 0,
+      regular: 1,
+      reserve: 0,
+      reserveCalls: 0,
+    });
     expect(p.carriedOver).toEqual([
       expect.objectContaining({ cottageNumber: 3, plannedDate: '2026-11-23', deferred: true }),
     ]);
@@ -95,7 +107,13 @@ describe('R5f — weekend', () => {
     const p = plan(stay(3, '2026-11-22', '2026-11-23', '14:00'), headcountFor(week, 1));
 
     expect(onDay(p, '2026-11-22')).toEqual([3]);
-    expect(dayOf(p, '2026-11-22')).toEqual({ date: '2026-11-22', needed: 1, available: 1 });
+    expect(dayOf(p, '2026-11-22')).toEqual({
+      date: '2026-11-22',
+      needed: 1,
+      regular: 1,
+      reserve: 0,
+      reserveCalls: 0,
+    });
     expect(p.carriedOver).toEqual([]);
   });
 
@@ -103,8 +121,8 @@ describe('R5f — weekend', () => {
     const p = plan(lastStay(4, '2026-11-21'), headcountFor(week, 2));
 
     expect(p.tasks).toEqual([]);
-    expect(dayOf(p, '2026-11-21')).toMatchObject({ needed: 0, available: 2 });
-    expect(dayOf(p, '2026-11-22')).toMatchObject({ needed: 0, available: 2 });
+    expect(dayOf(p, '2026-11-21')).toMatchObject({ needed: 0, regular: 2 });
+    expect(dayOf(p, '2026-11-22')).toMatchObject({ needed: 0, regular: 2 });
     expect(p.carriedOver).toEqual([
       expect.objectContaining({
         cottageNumber: 4,
