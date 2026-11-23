@@ -96,14 +96,15 @@ describe('parseDomainModel', () => {
     expect(() => parseDomainModel('# nothing here')).toThrow(/Business rules/);
   });
 
-  it('parses the real docs/domain-model.md: R5a–R5e, R15 and invariant 4a', () => {
+  it('parses the real docs/domain-model.md: R5a–R5e, R15 and invariants 1–18 (4a was removed with PAIR_ONLY)', () => {
     const real = parseDomainModel(
       readFileSync(new URL('../../../docs/domain-model.md', import.meta.url), 'utf8'),
     );
     expect(real.rules).toEqual(
       expect.arrayContaining(['R1', 'R5', 'R5a', 'R5b', 'R5c', 'R5d', 'R5e', 'R15']),
     );
-    expect(real.invariants).toEqual(expect.arrayContaining(['1', '4a', '14']));
+    expect(real.invariants).toEqual(expect.arrayContaining(['1', '14', '18']));
+    expect(real.invariants).not.toContain('4a');
     expect(new Set(real.rules).size).toBe(real.rules.length);
     expect(real.labels).toMatchObject({
       R5e: 'Deferred tasks on the new day',
