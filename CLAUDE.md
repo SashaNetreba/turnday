@@ -37,6 +37,8 @@ Hard rules:
 - Prefer plain functions and small types over classes in the domain.
 - No `any`. `strict: true` in every tsconfig.
 - Run repo tools with `pnpm exec <tool>` (or a `pnpm` script), never `npx`.
+- Git hooks (`lefthook.yml`) and a Claude Code Bash guard (`.claude/hooks/guard-bash.js`) enforce the gate and block
+  push. Never bypass them (`--no-verify`, `commit -n`, `LEFTHOOK=0`, `core.hooksPath`, `lefthook uninstall`).
 
 ## Before every commit
 

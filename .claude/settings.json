@@ -3,8 +3,6 @@
   "permissions": {
     "allow": [
       "Bash(pnpm install)",
-      "Bash(pnpm add *)",
-      "Bash(pnpm run *)",
       "Bash(pnpm lint)",
       "Bash(pnpm typecheck)",
       "Bash(pnpm test)",
@@ -25,18 +23,35 @@
       "Bash(git commit *)",
       "Bash(docker *)",
       "Bash(pnpm dlx *)",
-      "Bash(npx *)"
+      "Bash(npx *)",
+      "Bash(pnpm add *)",
+      "Bash(rm *)"
     ],
     "deny": [
       "Bash(git push *)",
+      "Bash(git *--no-verify*)",
       "Bash(git reset --hard *)",
       "Bash(rm -rf *)",
+      "Bash(rm -fr *)",
       "Bash(curl *)",
       "Bash(wget *)",
       "Read(./.env)",
       "Read(./.env.*)",
       "Read(**/*guest-list-report*.csv)",
       "Read(./private/**)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-bash.js"
+          }
+        ]
+      }
     ]
   }
 }

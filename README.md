@@ -45,4 +45,8 @@ The working agreement lives in the repo:
 - [.claude/skills](.claude/skills) — repeatable workflows: adding a domain rule, running the quality gate, writing an ADR.
 - [.claude/settings.json](.claude/settings.json) — what Claude Code may run without asking, what needs approval
   (e.g. `git commit`), and what is denied (e.g. `git push`, reading real guest exports or `.env`).
+- [lefthook.yml](lefthook.yml) — git hooks enforce the gate: lint and typecheck before every commit, `pnpm verify` and a
+  fresh traceability matrix before every push.
+- [.claude/hooks](.claude/hooks) — a guard that blocks `git push` and hook bypasses in Claude Code's Bash commands. It
+  exists because permission rules only match text: `git -C . push` slips past a `git push *` deny rule.
 - [docs/test-strategy.md](docs/test-strategy.md) — test levels, principles and the test naming convention.

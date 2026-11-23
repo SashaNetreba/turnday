@@ -5,6 +5,7 @@
     { "path": "packages/domain/tsconfig.test.json" },
     { "path": "apps/api" },
     { "path": "apps/web" },
-    { "path": "tools/traceability" }
+    { "path": "tools/traceability" },
+    { "path": "tools/claude-hooks" }
   ]
 }
