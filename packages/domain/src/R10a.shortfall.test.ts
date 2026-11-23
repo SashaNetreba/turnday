@@ -8,6 +8,7 @@ import {
   bookingArb,
   headcountArb,
   headcountFor,
+  planningScenarioArb,
   seedConfig,
   seedCottages,
   weekArb,
@@ -162,9 +163,15 @@ describe('R10a — properties', () => {
   it('invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount', () => {
     fc.assert(
       fc.property(
-        fc.array(bookingArb(), { maxLength: 40 }),
-        weekArb.chain((w) => fc.tuple(fc.constant(w), headcountArb(w))),
-        (bookings, [w, headcount]) => {
+        fc.oneof(
+          fc
+            .tuple(fc.array(bookingArb(), { maxLength: 40 }), weekArb)
+            .chain(([bookings, w]) =>
+              fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2, 1)),
+            ),
+          planningScenarioArb, // short days are common: regulars and reserves run out (R10b)
+        ),
+        ([bookings, w, headcount]) => {
           const tasks = deriveCleaningTasks(bookings, cottages, w, config);
           const p = planWeek({ tasks, headcount, week: w, config });
 

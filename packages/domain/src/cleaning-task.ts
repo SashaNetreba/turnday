@@ -11,7 +11,7 @@ export interface CleaningTask {
   readonly deferred: boolean;
   /** R4: from SchedulingConfig by cottage type. */
   readonly estimatedMinutes: number;
-  /** R6: always 1 for now; R7a / R8 raise it later. */
+  /** R6: always 1; only R8 (manual crew of 2) raises it. */
   readonly requiredCrewSize: 1 | 2;
   /** R5: departure date + checkout time. */
   readonly earliestStart: LocalDateTime;

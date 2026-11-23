@@ -62,9 +62,10 @@ export interface PlanWeekInput {
 }
 
 /**
- * Plans the week day by day from each day's headcount — R5c–R5g, R10a, invariants 1, 8, 9, 14, 15, 16.
+ * Plans the week day by day from each day's headcount — R5c–R5g, R10a, R10b, invariants 1, 8, 9, 14–17, 19.
  * A day's candidates (that day's departures + tasks still waiting, incl. carried-in ones) are staffed in priority
- * order (R5d); the rest wait for the next day while they still fit before their deadline, otherwise go to shortfall.
+ * order (R5d) by the regular housekeepers; the rest wait for the next day while they still fit before their deadline,
+ * otherwise go to a reserve housekeeper while one is free (R10b), else to shortfall.
  * On Saturday and Sunday only tasks that cannot wait until Monday are staffed (R5f).
  * After the last day, waiting tasks are carried over to the next week (R5g).
  * Throws on invalid input (headcount missing / duplicated / not an integer ≥ 0, task departing outside the week,
@@ -113,17 +114,25 @@ export function planWeek({
     const monday = followingMonday(date);
     const needsToday = (task: CleaningTask): boolean => !weekend || !fitsOn(task, monday, config);
 
-    let free = regular;
+    // R10b: regulars by R5d priority → defer what can wait → reserve for what cannot wait → shortfall.
+    let freeRegular = regular;
+    let freeReserve = reserve;
+    let reserveCalls = 0;
     for (const task of candidates) {
-      if (needsToday(task) && task.requiredCrewSize <= free) {
+      if (needsToday(task) && task.requiredCrewSize <= freeRegular) {
         staffed.push(plannedOn(task, date, config));
-        free -= task.requiredCrewSize;
-      } else if (!fitsOn(task, next, config)) {
-        shortfall.push({ task, reason: 'NO_STAFF', lastPossibleDate: date });
-      } else if (next === nextWeekStart) {
-        carried.push(plannedOn(task, next, config)); // R5g
+        freeRegular -= task.requiredCrewSize;
+      } else if (fitsOn(task, next, config)) {
+        // A task that can wait is deferred (or carried over), never given to the reserve.
+        if (next === nextWeekStart)
+          carried.push(plannedOn(task, next, config)); // R5g
+        else waiting.push(task); // R5c / R5f: deferred, still finishes before the next arrival
+      } else if (task.requiredCrewSize <= freeReserve) {
+        staffed.push(plannedOn(task, date, config)); // R10b: cannot be deferred → reserve call
+        freeReserve -= task.requiredCrewSize;
+        reserveCalls += 1;
       } else {
-        waiting.push(task); // R5c / R5f: deferred, still finishes before the next arrival
+        shortfall.push({ task, reason: 'NO_STAFF', lastPossibleDate: date });
       }
     }
     days.push({
@@ -131,7 +140,7 @@ export function planWeek({
       needed: sumCrew(candidates.filter(needsToday)),
       regular,
       reserve,
-      reserveCalls: 0,
+      reserveCalls,
     });
   }
 

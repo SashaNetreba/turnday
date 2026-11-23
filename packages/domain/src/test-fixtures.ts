@@ -238,7 +238,6 @@ const deferralBookingsArb = weekArb.chain((w) =>
     ]),
 );
 
-/** Bookings + week + headcount 0–2 per day: broad random bookings or departures focused on deferral. */
 /**
  * Focused on the weekend boundary (R5f): departures on the week's Saturday / Sunday whose next guest arrives on the
  * following Monday around 14:00–14:31 (workdayStart 10:00 + 4:30 stable = 14:30), plus a few weekday departures.
@@ -289,7 +288,7 @@ const hhmm = (minutes: number): LocalTime =>
  * day (Mon–Sat): a stable cottage whose next guest arrives the next day at 14:30–14:50 (fits the next day: 10:00 +
  * 270 = 14:30) and a premium cottage arriving later but before 15:00 (does not fit: 10:00 + 300 = 15:00) — the
  * stable one has the earlier deadline but can wait. Plus up to 4 other departures (next-day check-in 14:00–15:00,
- * same-day arrival or none) and headcount 0–2 per day, so short days are common.
+ * same-day arrival or none) and headcount regular 0–2, reserve 0–1 per day, so short days are common.
  */
 export const nextDayBoundaryScenarioArb: fc.Arbitrary<[Booking[], PlanningWeek, Headcount[]]> = fc
   .tuple(
@@ -344,9 +343,59 @@ export const nextDayBoundaryScenarioArb: fc.Arbitrary<[Booking[], PlanningWeek, 
   )
   .chain((bookings) => {
     const w: PlanningWeek = { start: propertyBase };
-    return fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2));
+    return fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2, 1));
   });
 
+/**
+ * Two chained Monday–Sunday weeks focused on the week boundary (R5g, R10b): departures on week 1's Sunday and week 2's
+ * Monday with a same-day arrival, no next arrival, or a next-day check-in 14:00–15:00 — so Sunday overflows, some
+ * tasks are carried into Monday and cannot wait there. Headcount: regular 0–1, reserve 0–1 per day.
+ */
+export const weekBoundaryTwoWeekScenarioArb: fc.Arbitrary<
+  [Booking[], PlanningWeek, Headcount[], PlanningWeek, Headcount[]]
+> = fc
+  .array(
+    fc.record({
+      cottage: fc.constantFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15),
+      outOffset: fc.constantFrom(6, 7), // week 1's Sunday, week 2's Monday
+      next: fc.oneof(
+        fc.integer({ min: 0, max: 12 }).map((step) => 14 * 60 + step * 5),
+        fc.constantFrom<'SAME_DAY' | 'NONE'>('SAME_DAY', 'NONE'),
+      ),
+    }),
+    { minLength: 2, maxLength: 8 },
+  )
+  .map((departures): Booking[] =>
+    departures.flatMap(({ cottage, outOffset, next }, i) => {
+      const out = addDays(propertyBase, outOffset);
+      const leaving = booking(`B${String(i)}`, cottage, addDays(out, -3), out);
+      if (next === 'NONE') return [leaving];
+      if (next === 'SAME_DAY') {
+        return [leaving, booking(`T${String(i)}`, cottage, out, addDays(out, 9))];
+      }
+      const arrival = addDays(out, 1);
+      return [
+        leaving,
+        {
+          ...booking(`A${String(i)}`, cottage, arrival, addDays(arrival, 9)),
+          checkinTime: hhmm(next),
+        },
+      ];
+    }),
+  )
+  .chain((bookings) => {
+    const w1: PlanningWeek = { start: propertyBase };
+    const w2: PlanningWeek = { start: addDays(propertyBase, 7) };
+    return fc.tuple(
+      fc.constant(bookings),
+      fc.constant(w1),
+      headcountArb(w1, 1, 1),
+      fc.constant(w2),
+      headcountArb(w2, 1, 1),
+    );
+  });
+
+/** Bookings + week + headcount (regular 0–2, reserve 0–1 per day): broad, deferral- or weekend-focused. */
 export const planningScenarioArb = fc
   .oneof(randomBookingsArb, deferralBookingsArb, weekendBoundaryArb)
-  .chain(([bookings, w]) => fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2)));
+  .chain(([bookings, w]) => fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2, 1)));

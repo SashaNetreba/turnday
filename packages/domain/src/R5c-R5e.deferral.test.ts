@@ -159,13 +159,14 @@ describe('R5d — priority', () => {
         ...stay(3, '2026-11-16', '2026-11-17', '14:35'),
         ...stay(11, '2026-11-16', '2026-11-17', '14:50'),
       ],
-      headcountFor(week, 1),
+      headcountFor(week, 1, {}, 1), // a reserve is free every day (R10b)
     );
 
     expect(onDay(p, '2026-11-16')).toEqual([11]);
     expect(taskOf(p, 11)).toMatchObject({ plannedDate: '2026-11-16', deferred: false });
     expect(taskOf(p, 3)).toMatchObject({ plannedDate: '2026-11-17', deferred: true });
     expect(p.shortfall).toEqual([]);
+    expect(p.days.map((d) => d.reserveCalls)).toEqual([0, 0, 0, 0, 0, 0, 0]); // R10b
   });
 });
 

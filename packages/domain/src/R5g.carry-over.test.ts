@@ -13,6 +13,7 @@ import {
   stay,
   turnover,
   weekArb,
+  weekBoundaryTwoWeekScenarioArb,
 } from './test-fixtures.js';
 
 const cottages = seedCottages();
@@ -164,12 +165,20 @@ describe('R5g — properties', () => {
   it('invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once', () => {
     fc.assert(
       fc.property(
-        fc.array(bookingArb(), { maxLength: 40 }),
-        weekArb.chain((w) => {
-          const w2 = { start: addDays(w.start, 7) };
-          return fc.tuple(fc.constant(w), headcountArb(w, 2), fc.constant(w2), headcountArb(w2, 2));
-        }),
-        (bookings, [w1, h1, w2, h2]) => {
+        fc.oneof(
+          fc.tuple(fc.array(bookingArb(), { maxLength: 40 }), weekArb).chain(([bookings, w]) => {
+            const w2 = { start: addDays(w.start, 7) };
+            return fc.tuple(
+              fc.constant(bookings),
+              fc.constant(w),
+              headcountArb(w, 2, 1),
+              fc.constant(w2),
+              headcountArb(w2, 2, 1),
+            );
+          }),
+          weekBoundaryTwoWeekScenarioArb, // Sunday overflow, carried tasks that cannot wait on Monday (R10b)
+        ),
+        ([bookings, w1, h1, w2, h2]) => {
           const tasks1 = deriveCleaningTasks(bookings, cottages, w1, config);
           const p1 = planWeek({ tasks: tasks1, headcount: h1, week: w1, config });
           const tasks2 = deriveCleaningTasks(bookings, cottages, w2, config);
