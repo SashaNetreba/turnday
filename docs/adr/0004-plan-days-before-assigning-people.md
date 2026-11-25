@@ -37,3 +37,17 @@ The crew rules changed (domain-model v0.4): PAIR_ONLY is dropped, any housekeepe
 trade-off above about a missing premium crew no longer applies. The decision stands: by R10b the headcount has two numbers
 per day, regular and reserve, and the reserve is called only for tasks that cannot be deferred. Who cleans what
 (stable first, R7a; which reserve is called, R10b) remains the assignment step.
+
+## Follow-up (2026-11-25)
+The assignment step is specified (domain-model v0.5). The decision stands: both steps stay separate.
+- Day planning fixes how many regular places each day has. Choosing which regulars fill them is a balanced-assignment
+  problem over the whole week (R11): first maximise staffed places, then minimise the spread of shifts, then build the
+  week day by day in priority order with a max-flow feasibility check. Weekend days are part of the same week (R12).
+- The weekly limit of 6 shifts (R9a) depends on who works, so it is checked in the assignment step, not in day
+  planning. A regular place it leaves unfilled goes to a reserve if the task cannot wait, otherwise to the shortfall
+  with reason `WEEKLY_LIMIT`. A shortfall can still be found in either step.
+- Trade-off accepted: day planning does not see the limit, so in principle a task that could wait would get
+  `WEEKLY_LIMIT` instead of being deferred. In practice this does not happen: when the planning week starts on Monday,
+  nobody can have 6 shifts before Sunday (6 shifts need 6 working days). On Sunday only tasks that cannot wait until
+  Monday are planned (R5f); everything else carries over (R5g). It could only happen in a week that does not start on
+  Monday, which the manager UI will not allow (domain-model §8 backlog).
