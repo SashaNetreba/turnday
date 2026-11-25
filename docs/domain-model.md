@@ -324,8 +324,9 @@ TimeEntry
   - Missing availability for an **active** housekeeper on any day of the week makes the input **invalid**: it is
     rejected with the list of housekeepers and dates affected. A missing entry is never treated as available or
     unavailable. Inactive housekeepers are not counted and need no availability.
-  - Two entries for the same housekeeper and date, or an entry for an unknown housekeeper id, make the input
-    **invalid** too; the error lists them. Entries for dates outside the planning week are ignored.
+  - Two entries for the same housekeeper and date, an entry for an unknown housekeeper id, or two housekeepers with
+    the same id make the input **invalid** too; the error lists them. Entries for dates outside the planning week are
+    ignored.
   - The headcount (R10a) is derived from it: `regular` / `reserve` = active housekeepers without / with `reserve`
     available that day.
   Examples (week from Mon 30 Nov 2026; A and B regular, R reserve):
@@ -333,6 +334,7 @@ TimeEntry
     on Monday → Monday's headcount is `{ regular: 2, reserve: 1 }`.
   - B has two entries for Wed 2 Dec and there is an entry for unknown id X on Thu 3 Dec → invalid input listing
     "B: 2026-12-02 (twice)" and "X: unknown housekeeper". An entry for A on Mon 7 Dec (next week) is ignored.
+  - Two housekeepers with id A → invalid input "A: duplicate housekeeper id".
 - **R10a. Shortfall.** Planning takes a **headcount** for every day of the planning week (housekeepers available,
   integer ≥ 0). A missing day, or a negative or non-integer count, makes the input **invalid**: it is rejected
   with the list of affected dates, never treated as 0. A day given twice is invalid too; dates outside the week are

@@ -7,12 +7,12 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 15 of 26 covered
+- Rules: 16 of 26 covered
 - Invariants: 13 of 23 covered
 
 ## NOT COVERED
 
-- Rules: R7, R7a, R8, R9, R9a, R10, R11, R12, R13, R14, R15
+- Rules: R7, R7a, R8, R9, R9a, R11, R12, R13, R14, R15
 - Invariants: 2, 3, 4, 6, 10, 18, 20, 21, 22, 23
 
 ## Rules
@@ -37,7 +37,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
 | R9 One clean per housekeeper per day | 0 | **NOT COVERED** |
 | R9a Weekly rest | 0 | **NOT COVERED** |
-| R10 Unavailable days | 0 | **NOT COVERED** |
+| R10 Unavailable days | 12 | covered |
 | R10a Shortfall | 11 | covered |
 | R10b Reserve | 7 | covered |
 | R11 Even distribution | 0 | **NOT COVERED** |
@@ -205,6 +205,21 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike
+
+### R10 Unavailable days
+
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: a housekeeper with both stableFirst and reserve makes the input invalid
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: a missing entry for an active housekeeper makes the input invalid, listing the housekeeper and date
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: a missing entry is never treated as available or unavailable
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: an entry outside the planning week is ignored
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: an inactive housekeeper needs no entries and is not counted
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: an inactive housekeeper with a duplicate entry or with both stableFirst and reserve makes the input invalid
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: an unavailable housekeeper is not counted
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: every problem is listed
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: two entries for one housekeeper and date and an unknown id are listed together
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: two housekeepers with the same id make the input invalid
+- packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: with every entry present and all three available on Monday, Monday's headcount is 2 regular and 1 reserve
+- packages/domain/src/R10.availability.test.ts › R10 — properties › R10: for valid input, regular and reserve on each day = active housekeepers without and with reserve available that day
 
 ### R10a Shortfall
 
