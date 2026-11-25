@@ -13,6 +13,11 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # Types follow the Node runtime (.nvmrc 22): bump them together with Node, by hand.
+      - dependency-name: '@types/node'
+        update-types:
+          - version-update:semver-major
 
   - package-ecosystem: github-actions
     directory: /
