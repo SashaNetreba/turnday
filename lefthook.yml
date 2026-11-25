@@ -14,3 +14,16 @@ pre-push:
     # docs/traceability.md is generated: fail if the committed copy is stale (same check as CI).
     traceability:
       run: pnpm test:matrix && git diff --exit-code docs/traceability.md
+
+# Keep node_modules in sync with the lockfile after a pull/merge or a branch switch; no-op if pnpm-lock.yaml is unchanged.
+# --frozen-lockfile: the hook only installs what pnpm-lock.yaml says; it never adds or upgrades packages.
+post-merge:
+  commands:
+    install:
+      run: if ! git diff --quiet ORIG_HEAD HEAD -- pnpm-lock.yaml; then pnpm install --frozen-lockfile; fi
+
+post-checkout:
+  commands:
+    install:
+      # {1} old HEAD, {2} new HEAD, {3} = 1 for a branch checkout (0 for a file checkout).
+      run: if [ "{3}" = 1 ] && ! git diff --quiet {1} {2} -- pnpm-lock.yaml; then pnpm install --frozen-lockfile; fi
