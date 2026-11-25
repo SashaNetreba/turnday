@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 15 of 25 covered
-- Invariants: 13 of 19 covered
+- Rules: 15 of 26 covered
+- Invariants: 13 of 23 covered
 
 ## NOT COVERED
 
-- Rules: R7, R7a, R8, R9, R10, R11, R12, R13, R14, R15
-- Invariants: 2, 3, 4, 6, 10, 18
+- Rules: R7, R7a, R8, R9, R9a, R10, R11, R12, R13, R14, R15
+- Invariants: 2, 3, 4, 6, 10, 18, 20, 21, 22, 23
 
 ## Rules
 
@@ -36,6 +36,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R7a Stable first | 0 | **NOT COVERED** |
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
 | R9 One clean per housekeeper per day | 0 | **NOT COVERED** |
+| R9a Weekly rest | 0 | **NOT COVERED** |
 | R10 Unavailable days | 0 | **NOT COVERED** |
 | R10a Shortfall | 11 | covered |
 | R10b Reserve | 7 | covered |
@@ -68,6 +69,10 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 17 | 1 | covered |
 | 18 | 0 | **NOT COVERED** |
 | 19 | 1 | covered |
+| 20 | 0 | **NOT COVERED** |
+| 21 | 0 | **NOT COVERED** |
+| 22 | 0 | **NOT COVERED** |
+| 23 | 0 | **NOT COVERED** |
 
 ## Rules → tests
 

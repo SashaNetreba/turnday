@@ -1,6 +1,6 @@
 # Domain Model — Housekeeping Scheduler
 
-> Status: **v0.4 — ready for implementation** · Owner: Oleksandra Netreba
+> Status: **v0.5 — ready for implementation** · Owner: Oleksandra Netreba
 > This document describes the business domain independently of any framework, database or UI.
 > Everything here lives in `packages/domain` and is covered by unit and property-based tests.
 
@@ -16,7 +16,7 @@ week to week — from ~3 days per person in low season to ~6 days in high season
 Goals:
 
 1. **Generate** a fair schedule automatically (Mon–Fri by demand; Sat–Sun only for tasks that cannot wait
-   until Monday (R5f), staffed by rotation (R12)).
+   until Monday (R5f), staffed by the same even distribution as weekdays (R11, R12)).
 2. **Track** actual working time (start / stop per cottage).
 3. Stay **source-agnostic**: bookings come from a CSV export today and may come from an API later.
 
@@ -35,9 +35,11 @@ Goals:
 | **Shift** | One housekeeper working on one date. |
 | **Assignment** | A housekeeper assigned to a cleaning task on a date. |
 | **Crew** | The housekeepers assigned to one cleaning task (1 by default, 2 when the manager raises it, R8). |
-| **Weekend rotation** | Fair turn-taking for Saturday/Sunday shifts. |
+| **Weekend rotation** | Fair turn-taking for Saturday/Sunday shifts — chosen by the even distribution of the same week (R11, R12). |
+| **Weekly limit** | At most 6 shifts per housekeeper in a planning week — at least one day off (R9a). |
+| **Spread** | `U − L`: the gap between the upper and lower bound on regular housekeepers' weekly shifts (R11). |
 | **Time entry** | Actual start/stop recorded by a housekeeper for an assignment. |
-| **Headcount** | Regular and reserve housekeepers available on a date, counted separately — input to planning (R10a, R10b). |
+| **Headcount** | Regular and reserve housekeepers available on a date, counted separately — derived from Housekeeper + Availability (R10); input to day planning (R10a, R10b). |
 | **Regular housekeeper** | A housekeeper who is not a reserve. |
 | **Reserve housekeeper** | Called only for a task that cannot wait (R10b). |
 | **Reserve call** | An assignment to a reserve housekeeper; the manager confirms it (R10b). |
@@ -79,8 +81,8 @@ Housekeeper
   reserve: boolean            # R10b, set by the manager; both flags on one housekeeper → invalid input
   active: boolean
 
-Availability                  # one entry per housekeeper per day, reserves included;
-                              # how it is entered is not a domain concern (§8 backlog)
+Availability                  # R10: required for every active housekeeper on every day of the planning
+                              # week, reserves included; who entered it is not a domain concern (§8 backlog)
   housekeeperId
   date
   available: boolean          # days off, holidays, sickness
@@ -107,9 +109,10 @@ SchedulingConfig              # passed into the domain, never hard-coded there
   defaultCheckinTime: time    # R5
   workdayStart: time          # R5c: housekeepers start work; start of a deferred task's window
 
-Headcount                     # R10a: input to planning, one entry for every day of the planning week
+Headcount                     # R10a: input to day planning, one entry for every day of the planning week;
+                              # derived from Housekeeper + Availability by R10
   date
-  regular: int >= 0           # regular housekeepers available that day (derived from Housekeeper + Availability with R10)
+  regular: int >= 0           # regular housekeepers available that day
   reserve: int >= 0           # reserve housekeepers available that day (R10b)
 
 WeekPlan                      # output of planning one week (R5c–R5g, R10a, R10b)
@@ -118,8 +121,9 @@ WeekPlan                      # output of planning one week (R5c–R5g, R10a, R1
                               # needed = Σ requiredCrewSize of that day's candidates;
                               # on Sat/Sun only those that cannot wait until Monday (R5f)
                               # reserveCalls = tasks staffed by a reserve that day (R10b)
-  shortfall: [{ task, reason: NO_STAFF | DEADLINE_PASSED, lastPossibleDate? }]
+  shortfall: [{ task, reason: NO_STAFF | DEADLINE_PASSED | WEEKLY_LIMIT, lastPossibleDate? }]
                               # lastPossibleDate (NO_STAFF): last day the task could still have been cleaned
+                              # WEEKLY_LIMIT (R9a): found when people are assigned — a 7th shift would staff it
   carriedOver: [CleaningTask] # still waiting after the week's last day → input to the next week (R5g)
 
 Assignment
@@ -273,13 +277,15 @@ TimeEntry
   `requiredCrewSize = 1`; only R8 may raise it.
 - **R7. Any housekeeper, any cottage.** A housekeeper cleans any cottage alone, stable or premium (crew of 1, R6).
   There is no pair-only rule.
-- **R7a. Stable first.** Applies after the day's cleaned tasks are decided (R5d, R5c, R10b).
+- **R7a. Stable first.** Applies after the day's cleaned tasks are decided (R5d, R5c, R10b) and after R11 has decided
+  **who** works today. R7a only decides **which cottage** each of the people already working cleans. `stableFirst`
+  never makes a housekeeper skip a shift.
   - Among the stable tasks cleaned today, a working housekeeper with `stableFirst` gets the one with **no arrival
     today**; if every one has an arrival today, the one with the **latest deadline**.
-  - She is given a premium task only when no other regular housekeeper is free for it — but she still comes before any
-    reserve housekeeper (R10b).
-  - Her preference never changes which tasks are cleaned today: it never causes a task with an arrival today to need
-    the reserve, to be deferred or to go to shortfall.
+  - She is given a premium task only when no other **working** regular housekeeper is free for it — but she still
+    comes before any reserve housekeeper (R10b).
+  - Her preference never changes which tasks are cleaned today, nor who works: it never causes a task with an arrival
+    today to need the reserve, to be deferred or to go to shortfall.
   - Several `stableFirst` housekeepers working the same day each get a stable task first by the same rule. If there
     are not enough stable tasks, the one with the fewest shifts this week takes the premium task; ties by lowest id.
   Examples (cottages 1–10 stable; 11, 12, 15 premium):
@@ -290,11 +296,43 @@ TimeEntry
   - Monday: departures 3 (stable, arrival today), 5 (stable, no arrival today) and 11 (premium, arrival today). The
     `stableFirst` housekeeper and one other regular work → 5 is deferred to Tuesday (R5d), she gets 3, the other gets 11.
     The reserve is not called.
+  - Week from Monday: the `stableFirst` housekeeper is unavailable Monday and Tuesday; regular B works both days.
+    Wednesday only cottage 11 (premium) departs, both are available, no other departures that week → R11 picks her
+    (0 shifts vs 2), so she cleans 11. Her flag does not hand the shift to B.
 - **R8. Manual crew of 2.** The manager can manually raise any task's crew to 2 (e.g. very dirty) — this is a `manualOverride` and is preserved when the schedule is regenerated.
 
 ### Capacity
 - **R9. One clean per housekeeper per day.** A housekeeper takes at most **one** cleaning task per day. This follows from R4 + R5: the earliest start is 10:00, one clean takes ≥ 4 h, so a second clean could not finish by 16:00.
+- **R9a. Weekly rest.** A housekeeper — regular or reserve — works at most **6 shifts** in the planning week (at least
+  one day off). The limit is checked when people are assigned (ADR 0004, step 2), not when days are planned.
+  - A regular place left unfilled by the limit (R11) goes to an available reserve under the limit who is not already
+    called that day (R10b), if the task **cannot wait**. Only if there is none, the task goes to the shortfall with
+    reason `WEEKLY_LIMIT` — distinct from `NO_STAFF`, so the manager sees that a 7th shift would solve it. When a day
+    has fewer places than tasks, the tasks last in R5d order lose the places.
+  - Why a task that could wait never reaches `WEEKLY_LIMIT` in practice: when the planning week starts on Monday,
+    nobody can have 6 shifts before Sunday (6 shifts need 6 working days). On Sunday only tasks that cannot wait until
+    Monday are planned (R5f); everything else carries over (R5g). So `WEEKLY_LIMIT` can only happen on Sunday, for a
+    task that cannot wait. In a week that does not start on Monday a task that could wait might reach it; the manager
+    UI will not allow such weeks (§8 backlog).
+  - A manual 7th shift set by the manager is out of scope for v1 (§8 backlog).
+  Example: week from Monday; A is the only regular, available every day, no reserve. Cottages 1–5 depart Monday to
+  Friday and 6 on Saturday, each with an arrival the same day → A cleans one per day (6 shifts). Sunday cottage 7
+  departs with an arrival Sunday 16:00 → `WEEKLY_LIMIT` shortfall.
 - **R10. Unavailable days.** A housekeeper is never scheduled on a day they are unavailable.
+  - Planning takes the housekeepers and their availability for every day of the planning week. Who entered it
+    (manager or housekeeper) is not the domain's concern.
+  - Missing availability for an **active** housekeeper on any day of the week makes the input **invalid**: it is
+    rejected with the list of housekeepers and dates affected. A missing entry is never treated as available or
+    unavailable. Inactive housekeepers are not counted and need no availability.
+  - Two entries for the same housekeeper and date, or an entry for an unknown housekeeper id, make the input
+    **invalid** too; the error lists them. Entries for dates outside the planning week are ignored.
+  - The headcount (R10a) is derived from it: `regular` / `reserve` = active housekeepers without / with `reserve`
+    available that day.
+  Examples (week from Mon 30 Nov 2026; A and B regular, R reserve):
+  - A has no entry for Tue 1 Dec → invalid input "A: 2026-12-01". With every entry present and all three available
+    on Monday → Monday's headcount is `{ regular: 2, reserve: 1 }`.
+  - B has two entries for Wed 2 Dec and there is an entry for unknown id X on Thu 3 Dec → invalid input listing
+    "B: 2026-12-02 (twice)" and "X: unknown housekeeper". An entry for A on Mon 7 Dec (next week) is ignored.
 - **R10a. Shortfall.** Planning takes a **headcount** for every day of the planning week (housekeepers available,
   integer ≥ 0). A missing day, or a negative or non-integer count, makes the input **invalid**: it is rejected
   with the list of affected dates, never treated as 0. A day given twice is invalid too; dates outside the week are
@@ -307,8 +345,8 @@ TimeEntry
   The headcount gives `regular` and `reserve` separately for each day (R10b); the checks above apply to both numbers.
   A day entry without one of the two numbers is invalid too — a missing `reserve` is never treated as 0.
 - **R10b. Reserve.** A housekeeper with `reserve` is used only for a task that **cannot be deferred** (R5c), and only
-  after all available regular housekeepers have a task. A task that can wait is deferred instead of calling the
-  reserve. If no reserve is available either, the task goes to the shortfall (R10a).
+  after all available regular housekeepers under the weekly limit (R9a) have a task. A task that can wait is deferred
+  instead of calling the reserve. If no reserve is available either, the task goes to the shortfall (R10a).
   - Order each day: regular housekeepers by R5d priority → defer what can wait → reserve for what cannot wait →
     shortfall.
   - Weekends follow the same rule (R5f): a reserve is called only for a task that cannot wait.
@@ -322,8 +360,27 @@ TimeEntry
     available → shortfall.
 
 ### Fairness
-- **R11. Even distribution.** Over a week, shifts are distributed as evenly as possible across active **regular** housekeepers — reserves are excluded (R10b) (difference between most and least loaded ≤ 1 shift where availability allows).
-- **R12. Weekend rotation.** Weekend shifts of **regular** housekeepers follow a **rotation** — reserves are excluded (R10b): the housekeepers with the fewest weekend shifts in the rolling history are picked first; ties broken by longest time since last weekend shift.
+- **R11. Even distribution.** R11 decides **which regular housekeepers work** on each day of the planning week; reserves
+  are excluded (R10b). Contract hours are ignored in v1 — every shift counts the same. Each day's number of regular
+  places is already fixed by day planning (ADR 0004), so this is a balanced-assignment problem over the whole week:
+  1. **Bounds.** First maximise the number of staffed regular places, then find the smallest **spread** `U − L`:
+     bounds `L ≤ U` such that every regular works at least `min(L, their available days)` and at most `min(U, 6)`
+     shifts (R9a), and no day gets more than its count of regular places.
+  2. **Build.** Fill the week day by day. On each day candidates are tried in priority order: **fewest shifts so
+     far** this week, then **longest since their last shift** (no shift yet this week counts as longest), then
+     **lowest id**. A candidate is accepted only if the rest of the week can still reach the staffed count and the
+     bounds from step 1 (max-flow feasibility check). The result is deterministic and optimal.
+  - Saturday and Sunday are part of the same week (R12).
+  - A regular place left unfilled because of the 6-shift limit is handled by R9a (reserve if the task cannot wait,
+    otherwise `WEEKLY_LIMIT`). In a week starting on Monday this can only happen on Sunday.
+  Example: A and B are both available Monday and only A is available Tuesday; cottage 3 departs Monday and cottage 5
+  Tuesday, each needing one regular; no other departures that week. Fewest-shifts-first alone would give Monday to A
+  (lowest id) and leave Tuesday to A as well → 2 vs 0. R11 gives Monday to B and Tuesday to A → 1 vs 1.
+- **R12. Weekend rotation.** A weekend day staffs only tasks that cannot wait until Monday (R5f). Who works it is
+  decided by R11 within the same week, like any other day — the regular with the fewest shifts this week comes first.
+  Reserves are excluded (R10b). No history across weeks in v1.
+  Example: Sunday cottage 7 departs with an arrival Sunday 16:00; A has 4 shifts this week and B has 3, both are
+  available and the R11 bounds allow either → B works Sunday.
 
 ### Time tracking
 - **R13. Own assignment, today only.** A housekeeper can only start a time entry for their own assignment on the current date.
@@ -369,12 +426,22 @@ For any randomly generated week of bookings and availability, the generated sche
     tight; a task with a negative window is at risk; a deferred task is never at risk.
 15. `deferred` ⇔ `plannedDate > departureDate`. Planning never changes `departureDate` or `earliestStart`.
 16. A task is planned on a Saturday or Sunday only if it cannot wait until the following Monday (R5f).
-17. A reserve is used on a day only when every available regular housekeeper has a task, and only for tasks that
-    cannot be deferred (R10b).
-18. `stableFirst` flags never change which tasks are staffed, deferred or in shortfall: the plan with and without them
-    differs only in who cleans what (R7a).
+17. A reserve is used on a day only when every available regular housekeeper under the weekly limit (R9a) has a task,
+    and only for tasks that cannot be deferred (R10b).
+18. `stableFirst` flags never change which tasks are staffed, deferred or in shortfall, nor **who works** on each day:
+    the plan with and without them differs only in which cottage each working housekeeper cleans (R7a after R11).
 19. On any day, if a task that cannot be deferred goes to the shortfall, no task that could have been deferred was
     staffed that day (R5d).
+20. No housekeeper, regular or reserve, has more than 6 shifts in the planning week. On the day of a `WEEKLY_LIMIT`
+    task every available regular without a task that day has 6 shifts; if the task cannot wait, so does every
+    available reserve without a task that day (R9a).
+21. Among regular housekeepers, the number of staffed places is the largest possible within the 6-shift limit, and for
+    that number the spread `U − L` is the smallest possible for the given availability and day counts (R11) —
+    checked against brute force on small weeks.
+22. If every active regular housekeeper is available on every day of the planning week, the most and least loaded
+    regular differ by at most 1 shift (R11).
+23. If the planning week starts on Monday, `WEEKLY_LIMIT` happens only on Sunday and only for a task that cannot
+    wait (R9a, R5f).
 
 ---
 
@@ -394,6 +461,13 @@ Resolved:
 - [x] **How far a task is deferred:** chained to the first day with a free housekeeper, while it still fits → R5c.
 - [x] **Weekend:** days off; only tasks that cannot wait until Monday are staffed → R5f.
 - [x] **Past the planning week:** carried over into the next week, not shortfall → R5g.
+
+- [x] **Who works each day:** exact even distribution over the week (smallest spread, then fewest shifts so far,
+      longest since last shift, lowest id); contract hours ignored in v1 → R11.
+- [x] **Stable first vs. fairness:** R11 decides who works, R7a only which cottage; the flag never costs a shift → R7a.
+- [x] **Weekend staffing:** same rule as weekdays within the week; no multi-week history in v1 → R12.
+- [x] **Weekly rest:** at most 6 shifts per week; otherwise reserve or `WEEKLY_LIMIT` shortfall → R9a.
+- [x] **Availability as input:** required for every active housekeeper and day; headcount derived from it → R10.
 
 Open: none for v1.
 
@@ -447,3 +521,9 @@ Backlog:
 - [ ] When the manager raises a crew to 2 (R8), the deferral check (R5c) should use the crew-adjusted duration — e.g.
       premium with early check-in 14:00 fits on its arrival day with a crew of 2.
 - [ ] API: housekeepers may enter their own availability; a manager entry for the same housekeeper and date wins.
+      Deadline Thursday 18:00 for the next week; anyone who has not filled it in is treated as unavailable and the
+      manager sees a "not filled in" list.
+- [ ] Manual 7th shift (R9a): the manager may assign a housekeeper a 7th shift to resolve a `WEEKLY_LIMIT` shortfall.
+- [ ] Manager UI allows only planning weeks starting on Monday (R9a, R11: shifts are counted per planning week).
+- [ ] Contract hours in the even distribution (R11) — v1 counts every shift equally.
+- [ ] Weekend fairness across weeks (R12) — v1 has no multi-week history.
