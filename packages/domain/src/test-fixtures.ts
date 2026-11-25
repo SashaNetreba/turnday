@@ -2,11 +2,13 @@
 import fc from 'fast-check';
 
 import type {
+  Availability,
   Booking,
   BookingStatus,
   CleaningTask,
   Cottage,
   Headcount,
+  Housekeeper,
   LocalTime,
   PlanningWeek,
   SchedulingConfig,
@@ -399,3 +401,94 @@ export const weekBoundaryTwoWeekScenarioArb: fc.Arbitrary<
 export const planningScenarioArb = fc
   .oneof(randomBookingsArb, deferralBookingsArb, weekendBoundaryArb)
   .chain(([bookings, w]) => fc.tuple(fc.constant(bookings), fc.constant(w), headcountArb(w, 2, 1)));
+
+// ---- Housekeepers and availability (R10) ----
+
+/** An active regular housekeeper named after its id, unless `flags` says otherwise. */
+export function housekeeper(id: string, flags: Partial<Omit<Housekeeper, 'id'>> = {}): Housekeeper {
+  return { id, displayName: id, stableFirst: false, reserve: false, active: true, ...flags };
+}
+
+/**
+ * One entry per housekeeper and day of `week`, all available; `unavailable` lists ISO dates per id that are entered
+ * as unavailable instead.
+ */
+export function availableAllWeek(
+  week: PlanningWeek,
+  ids: readonly string[],
+  unavailable: Readonly<Record<string, readonly string[]>> = {},
+): Availability[] {
+  return ids.flatMap((housekeeperId) =>
+    daysOf(week).map((date) => ({
+      housekeeperId,
+      date,
+      available: !(unavailable[housekeeperId] ?? []).includes(date),
+    })),
+  );
+}
+
+/**
+ * Valid R10 input with 0–8 housekeepers (random reserve / stableFirst, never both; random active), one entry per
+ * active housekeeper and day, plus noise that must not count: optional entries for inactive housekeepers in the week
+ * and entries outside the week (known or unknown ids). `expected[i]` = active housekeepers available on day i, split
+ * into `regular` (without `reserve`) and `reserve`.
+ */
+export const availabilityScenarioArb: fc.Arbitrary<{
+  week: PlanningWeek;
+  housekeepers: Housekeeper[];
+  availability: Availability[];
+  expected: { regular: number; reserve: number }[];
+}> = weekArb.chain((week) =>
+  fc
+    .array(
+      fc.record({
+        role: fc.constantFrom('REGULAR', 'STABLE_FIRST', 'RESERVE'),
+        active: fc.boolean(),
+        days: fc.array(fc.boolean(), { minLength: 7, maxLength: 7 }),
+        inactiveEntries: fc.option(fc.array(fc.boolean(), { minLength: 7, maxLength: 7 })),
+      }),
+      { maxLength: 8 },
+    )
+    .chain((team) => {
+      const housekeepers = team.map((m, i) =>
+        housekeeper(`H${String(i)}`, {
+          active: m.active,
+          reserve: m.role === 'RESERVE',
+          stableFirst: m.role === 'STABLE_FIRST',
+        }),
+      );
+      const days = daysOf(week);
+      const inWeek = team.flatMap((m, i): Availability[] => {
+        const entries = m.active ? m.days : m.inactiveEntries;
+        if (entries === null) return [];
+        return days.map((date, d) => ({
+          housekeeperId: `H${String(i)}`,
+          date,
+          available: entries[d] ?? false,
+        }));
+      });
+      const outsideArb = fc.array(
+        fc.record({
+          housekeeperId: fc.constantFrom('X', ...housekeepers.map((h) => h.id)),
+          date: fc
+            .oneof(fc.integer({ min: -7, max: -1 }), fc.integer({ min: 7, max: 13 }))
+            .map((offset) => addDays(week.start, offset)),
+          available: fc.boolean(),
+        }),
+        { maxLength: 6 },
+      );
+      const expected = days.map((_, d) => {
+        const working = team.filter((m) => m.active && (m.days[d] ?? false));
+        return {
+          regular: working.filter((m) => m.role !== 'RESERVE').length,
+          reserve: working.filter((m) => m.role === 'RESERVE').length,
+        };
+      });
+      return outsideArb.map((outside) => ({
+        week,
+        housekeepers,
+        availability: [...inWeek, ...outside],
+        expected,
+      }));
+    }),
+);
