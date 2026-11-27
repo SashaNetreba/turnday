@@ -59,5 +59,7 @@ runs day planning unchanged and then assigns people.
   reserve if the task cannot wait, otherwise the task moves from `tasks` to the shortfall with reason `WEEKLY_LIMIT`.
 - R7a only decides which cottage each working housekeeper cleans, after R11 has decided who works. It never changes
   what day planning staffed (invariant 18).
-- The weekend alternative (R5h) is computed after the assignment as a suggestion on the assignment. It never changes
-  the plan, so day planning still does not depend on who is free.
+- The weekend alternative (R5h) is computed after day planning and the assignment, and only marks assignments as a
+  suggestion; day planning still does not depend on who is free. Invariant 25's "the schedule is the same with or
+  without alternatives" is not asserted by a test yet. The direct check is planned together with the manager's
+  "accept / reject alternative" feature (domain-model §8 backlog).
