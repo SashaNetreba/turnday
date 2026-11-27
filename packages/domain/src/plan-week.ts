@@ -71,13 +71,27 @@ export interface PlanWeekInput {
  * Throws on invalid input (headcount missing / duplicated / not an integer ≥ 0, task departing outside the week,
  * carried task not departed before the week or given twice).
  */
-export function planWeek({
-  tasks,
-  headcount,
-  week,
-  config,
-  carriedOver = [],
-}: PlanWeekInput): WeekPlan {
+export function planWeek(input: PlanWeekInput): WeekPlan {
+  return planDays(input).plan;
+}
+
+/** Day planning (ADR 0004, step 1): which tasks one day's regular and reserve places staff, in R5d order. */
+export interface DayStaffing {
+  readonly date: LocalDate;
+  /** Tasks staffed by regular housekeepers, as planned that day, in R5d order. */
+  readonly byRegular: readonly CleaningTask[];
+  /** Tasks staffed by a reserve call (R10b), as planned that day, in R5d order. */
+  readonly byReserve: readonly CleaningTask[];
+}
+
+/**
+ * `planWeek` plus, for each day, which tasks the regular and the reserve places staff — the input of the
+ * assignment step (ADR 0004, step 2). Internal: not exported from the package.
+ */
+export function planDays({ tasks, headcount, week, config, carriedOver = [] }: PlanWeekInput): {
+  readonly plan: WeekPlan;
+  readonly staffing: readonly DayStaffing[];
+} {
   const staffOn = validHeadcount(headcount, week);
   const outside = tasks.filter((t) => !contains(week, t.departureDate));
   if (outside.length > 0) {
@@ -90,6 +104,7 @@ export function planWeek({
   const staffed: CleaningTask[] = [];
   const shortfall: Shortfall[] = [];
   const days: DayLoad[] = [];
+  const staffing: DayStaffing[] = [];
   const carried: CleaningTask[] = [];
   const nextWeekStart = addDays(week.start, DAYS_IN_PLANNING_WEEK); // R5g
   const lastDay = lastDayOf(week);
@@ -117,10 +132,13 @@ export function planWeek({
     // R10b: regulars by R5d priority → defer what can wait → reserve for what cannot wait → shortfall.
     let freeRegular = regular;
     let freeReserve = reserve;
-    let reserveCalls = 0;
+    const byRegular: CleaningTask[] = [];
+    const byReserve: CleaningTask[] = [];
     for (const task of candidates) {
       if (needsToday(task) && task.requiredCrewSize <= freeRegular) {
-        staffed.push(plannedOn(task, date, config));
+        const planned = plannedOn(task, date, config);
+        staffed.push(planned);
+        byRegular.push(planned);
         freeRegular -= task.requiredCrewSize;
       } else if (fitsOn(task, next, config)) {
         // A task that can wait is deferred (or carried over), never given to the reserve.
@@ -128,9 +146,10 @@ export function planWeek({
           carried.push(plannedOn(task, next, config)); // R5g
         else waiting.push(task); // R5c / R5f: deferred, still finishes before the next arrival
       } else if (task.requiredCrewSize <= freeReserve) {
-        staffed.push(plannedOn(task, date, config)); // R10b: cannot be deferred → reserve call
+        const planned = plannedOn(task, date, config); // R10b: cannot be deferred → reserve call
+        staffed.push(planned);
+        byReserve.push(planned);
         freeReserve -= task.requiredCrewSize;
-        reserveCalls += 1;
       } else {
         shortfall.push({ task, reason: 'NO_STAFF', lastPossibleDate: date });
       }
@@ -140,11 +159,12 @@ export function planWeek({
       needed: sumCrew(candidates.filter(needsToday)),
       regular,
       reserve,
-      reserveCalls,
+      reserveCalls: byReserve.length,
     });
+    staffing.push({ date, byRegular, byReserve });
   }
 
-  return { tasks: staffed, days, shortfall, carriedOver: carried };
+  return { plan: { tasks: staffed, days, shortfall, carriedOver: carried }, staffing };
 }
 
 /**
@@ -174,8 +194,11 @@ function byDeadline(a: CleaningTask, b: CleaningTask): number {
   return a.departureDate < b.departureDate ? -1 : a.departureDate > b.departureDate ? 1 : 0;
 }
 
-/** R5c: a task can be cleaned on a later `day` if it has no deadline or workdayStart + estimate ≤ deadline. */
-function fitsOn(task: CleaningTask, day: LocalDate, config: SchedulingConfig): boolean {
+/**
+ * R5c: a task can be cleaned on a later `day` if it has no deadline or workdayStart + estimate ≤ deadline.
+ * Exported for the assignment step (R9a "cannot wait"); not exported from the package.
+ */
+export function fitsOn(task: CleaningTask, day: LocalDate, config: SchedulingConfig): boolean {
   return (
     task.deadline === undefined ||
     minutesBetween(atTime(day, config.workdayStart), task.deadline) >= task.estimatedMinutes
