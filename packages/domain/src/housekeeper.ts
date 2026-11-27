@@ -1,4 +1,4 @@
-/** A team member who cleans cottages (docs/domain-model.md §5). Both `stableFirst` and `reserve` → invalid (R10). */
+/** A team member who cleans cottages (docs/domain-model.md §3). Both `stableFirst` and `reserve` → invalid (R10). */
 export interface Housekeeper {
   readonly id: string;
   readonly displayName: string;

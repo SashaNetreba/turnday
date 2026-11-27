@@ -20,8 +20,11 @@ export interface CleaningTask {
   readonly earliestStart: LocalDateTime;
   /** R5: next arrival into this cottage + check-in time; absent when no next arrival is known. */
   readonly deadline?: LocalDateTime;
-  /** R5: a deadline exists and deadline − earliestStart − estimatedMinutes ≤ 0. */
+  /**
+   * R5: a deadline exists and deadline − windowStart − estimatedMinutes ≤ 0.
+   * windowStart = earliestStart, or plannedDate + workdayStart if deferred (R5c).
+   */
   readonly tight: boolean;
-  /** R5b: a deadline exists and deadline − earliestStart < estimatedMinutes — one person cannot finish in time. */
+  /** R5b: a deadline exists and deadline − windowStart < estimatedMinutes — one person cannot finish in time. */
   readonly atRisk: boolean;
 }

@@ -45,7 +45,9 @@ export interface ScheduleWeekInput {
 
 /**
  * Plans the week and assigns people (ADR 0004): headcount from availability (R10) → day planning (R5c–R5g, R10a,
- * R10b) → who cleans each staffed task.
+ * R10b) → which regulars work each day (R11, R12, at most 6 shifts R9a, one task a day R9) → reserve calls, and the
+ * R9a fallback to a reserve or a WEEKLY_LIMIT shortfall → which cottage each one cleans (R7a, incl. the swap with a
+ * reserve) → weekend alternatives (R5h): computed last and only added to the assignments as a suggestion.
  */
 export function scheduleWeek({
   tasks,
