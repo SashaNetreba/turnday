@@ -7,13 +7,21 @@ around a clean, test-first architecture.
 
 ## What it does
 
-- Generates a fair weekly cleaning schedule from guest departures (RezLynx CSV import).
-- Moves cleans to the next day when the team is short and nobody arrives that day.
-- Lets housekeepers start/stop work from their phone; managers see planned vs actual time.
+Built (domain logic in `packages/domain`, no UI or API yet):
+
+- Turns a week of bookings into cleaning tasks with time windows (checkout → next check-in, manager overrides).
+- Plans each day by headcount: a clean that still fits before the next arrival waits for a later day when the team
+  is short, or over the weekend; reserves are called only for cleans that cannot wait; what still fails is reported.
+- Assigns named housekeepers fairly over the week (even spread, at most 6 shifts, stable-first preference).
+
+Planned:
+
+- RezLynx CSV import, a manager UI and a REST API.
+- Housekeepers start/stop work from their phone; managers see planned vs actual time.
 
 ## Getting started
 
-Requires Node 22+ and pnpm (via `corepack enable`).
+Requires Node >= 22.18 and pnpm (via `corepack enable`).
 
 ```sh
 pnpm install

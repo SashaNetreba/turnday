@@ -6,6 +6,8 @@ The domain rules are in `docs/domain-model.md` — read it before changing anyth
 
 ## Architecture (hexagonal / ports & adapters)
 
+Target layout. Today only `packages/domain` is built; `apps/*` are empty stubs and `infrastructure` does not exist yet.
+
 ```
 apps/web        React + Vite (manager UI + housekeeper mobile PWA)
 apps/api        NestJS REST API — thin: validates input, calls the domain, maps errors
@@ -24,10 +26,11 @@ Hard rules:
 
 - `pnpm install` — install
 - `pnpm lint` / `pnpm typecheck` — static checks
-- `pnpm test` — unit tests (Vitest)
-- `pnpm test:api` — API tests (Supertest + Testcontainers, needs Docker)
-- `pnpm test:e2e` — Playwright
-- `pnpm verify` — lint + typecheck + unit tests (run before every commit)
+- `pnpm test` — unit + property tests (Vitest + fast-check)
+- `pnpm arch` — architecture check (dependency-cruiser)
+- `pnpm verify` — lint + typecheck + arch + unit/property tests (run before every commit)
+- `pnpm test:matrix` — regenerates `docs/traceability.md`; commit it (CI and pre-push fail if it is stale)
+- Planned, scripts not added yet: `pnpm test:api` (Supertest + Testcontainers, needs Docker), `pnpm test:e2e` (Playwright)
 
 ## How we work
 
