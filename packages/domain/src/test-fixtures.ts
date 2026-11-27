@@ -733,6 +733,28 @@ export const mondayTeamWeekArb: fc.Arbitrary<TeamWeekScenario> = fc.oneof(
 );
 
 /**
+ * Monday–Sunday weeks where the R9a fallback reaches a reserve (invariant 26): H0, the only regular, is available every
+ * day and has a turnover every day (1–3 Monday to Saturday), so she has 6 shifts by Sunday; Sunday has exactly one
+ * turnover, so day planning gives it H0's place, not a reserve call. R0 is available only on Sunday, so the place
+ * the limit leaves unfilled goes to R0 by the fallback.
+ */
+export const reserveFallbackWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
+  .array(fc.integer({ min: 1, max: 3 }), { minLength: 6, maxLength: 6 })
+  .map((monToSat) => {
+    const week: PlanningWeek = { start: propertyBase };
+    const sunday = addDays(week.start, 6);
+    return {
+      week,
+      housekeepers: [housekeeper('H0'), housekeeper('R0', { reserve: true })],
+      availability: daysOf(week).flatMap((date) => [
+        { housekeeperId: 'H0', date, available: true },
+        { housekeeperId: 'R0', date, available: date === sunday },
+      ]),
+      bookings: dailyTurnovers(week, [...monToSat, 1]),
+    };
+  });
+
+/**
  * Monday–Sunday weeks where reserves carry the week (R9a, R10b): 0–1 regulars, 1–2 reserves with R0 available every
  * day, 1–3 turnovers every day — so reserves are called day after day and reach the 6-shift limit.
  */

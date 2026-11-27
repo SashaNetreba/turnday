@@ -8,12 +8,12 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ## Summary
 
 - Rules: 20 of 27 covered
-- Invariants: 19 of 26 covered
+- Invariants: 20 of 26 covered
 
 ## NOT COVERED
 
 - Rules: R5h, R7, R7a, R8, R13, R14, R15
-- Invariants: 4, 6, 10, 18, 24, 25, 26
+- Invariants: 4, 6, 10, 18, 24, 25
 
 ## Rules
 
@@ -40,7 +40,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R9a Weekly rest | 7 | covered |
 | R10 Unavailable days | 13 | covered |
 | R10a Shortfall | 11 | covered |
-| R10b Reserve | 9 | covered |
+| R10b Reserve | 11 | covered |
 | R11 Even distribution | 6 | covered |
 | R12 Weekend rotation | 1 | covered |
 | R13 Own assignment, today only | 0 | **NOT COVERED** |
@@ -76,7 +76,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 23 | 1 | covered |
 | 24 | 0 | **NOT COVERED** |
 | 25 | 0 | **NOT COVERED** |
-| 26 | 0 | **NOT COVERED** |
+| 26 | 1 | covered |
 
 ## Rules → tests
 
@@ -266,6 +266,8 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: when every regular has a task, the reserve takes the task that cannot wait
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: with no reserve available, the task that cannot wait goes to shortfall
 - packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 7 / R11 / R10b: shuffling the order of the housekeepers in the input does not change the schedule
+- packages/domain/src/R9a.weekly-limit.test.ts › R10b — properties › invariant 26 / R10b: needsReserveCall ⇔ the crew includes a reserve; a day’s reserveCalls counts those assignments
+- packages/domain/src/R9a.weekly-limit.test.ts › R10b — which reserve is called › R10b: six same-day turnovers on Monday and five regulars → only the reserve’s assignment (cottage 6) has needsReserveCall
 - packages/domain/src/R9a.weekly-limit.test.ts › R10b — which reserve is called › R10b: the reserve with the fewest shifts this week is called; on a tie the lowest id — R1, R2, R1 Monday to Wednesday
 
 ### R11 Even distribution
@@ -364,6 +366,10 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### Invariant 23
 
 - packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 23 / R9a: in a week starting on Monday, WEEKLY_LIMIT happens only on Sunday and only for a task that cannot wait
+
+### Invariant 26
+
+- packages/domain/src/R9a.weekly-limit.test.ts › R10b — properties › invariant 26 / R10b: needsReserveCall ⇔ the crew includes a reserve; a day’s reserveCalls counts those assignments
 
 ## Unknown references
 

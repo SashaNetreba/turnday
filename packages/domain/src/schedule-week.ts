@@ -13,6 +13,8 @@ export interface Assignment {
   readonly task: CleaningTask;
   /** The crew: `requiredCrewSize` housekeepers. */
   readonly housekeeperIds: readonly string[];
+  /** R10b: ⇔ the crew includes a reserve (day-planning call or R9a fallback); the manager confirms the call. */
+  readonly needsReserveCall: boolean;
 }
 
 /** WeekPlan + who cleans each staffed task — output of scheduleWeek (ADR 0004, step 2). */
@@ -93,7 +95,7 @@ export function scheduleWeek({
         calledToday.add(id);
         reserveShifts.set(id, (reserveShifts.get(id) ?? 0) + 1);
       }
-      assignments.push({ task, housekeeperIds: crew });
+      assignments.push({ task, housekeeperIds: crew, needsReserveCall: true });
       reserveCalls.set(date, (reserveCalls.get(date) ?? 0) + 1);
       return true;
     };
@@ -138,7 +140,11 @@ function crews(
       unstaffed.push(task);
       continue;
     }
-    assigned.push({ task, housekeeperIds: people.slice(next, next + task.requiredCrewSize) });
+    assigned.push({
+      task,
+      housekeeperIds: people.slice(next, next + task.requiredCrewSize),
+      needsReserveCall: false, // regulars only
+    });
     next += task.requiredCrewSize;
   }
   return { assigned, unstaffed };

@@ -7,6 +7,7 @@ import {
   availableAllWeek,
   housekeeper,
   mondayTeamWeekArb,
+  reserveFallbackWeekArb,
   reserveLimitWeekArb,
   seedConfig,
   seedCottages,
@@ -151,6 +152,69 @@ describe('R10b — which reserve is called', () => {
       [days[1], ['R2']],
       [days[2], ['R1']],
     ]);
+  });
+
+  it('R10b: six same-day turnovers on Monday and five regulars → only the reserve’s assignment (cottage 6) has needsReserveCall', () => {
+    // All six have arrivals Monday 16:00 → none can wait; R5d ties by cottage number, so 6 is last and needs R.
+    const s = schedule(
+      [1, 2, 3, 4, 5, 6].flatMap((c) => turnover(c, days[0] ?? '')),
+      [
+        ...['A', 'B', 'C', 'D', 'E'].map((id) => housekeeper(id)),
+        housekeeper('R', { reserve: true }),
+      ],
+    );
+
+    expect(
+      s.assignments
+        .map((a) => [a.task.cottageNumber, a.needsReserveCall])
+        .sort(([x], [y]) => Number(x) - Number(y)),
+    ).toEqual([
+      [1, false],
+      [2, false],
+      [3, false],
+      [4, false],
+      [5, false],
+      [6, true],
+    ]);
+    expect(s.assignments.find((a) => a.task.cottageNumber === 6)?.housekeeperIds).toEqual(['R']);
+  });
+});
+
+describe('R10b — properties', () => {
+  it('invariant 26 / R10b: needsReserveCall ⇔ the crew includes a reserve; a day’s reserveCalls counts those assignments', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(
+          teamWeekScenarioArb,
+          mondayTeamWeekArb,
+          reserveLimitWeekArb,
+          reserveFallbackWeekArb,
+        ),
+        ({ week: w, housekeepers, availability, bookings }) => {
+          const s = scheduleWeek({
+            tasks: deriveCleaningTasks(bookings, cottages, w, config),
+            housekeepers,
+            availability,
+            week: w,
+            config,
+          });
+          const reserves = new Set(housekeepers.filter((h) => h.reserve).map((h) => h.id));
+          for (const a of s.assignments) {
+            expect(
+              a.needsReserveCall,
+              `cottage ${String(a.task.cottageNumber)} on ${a.task.plannedDate}`,
+            ).toBe(a.housekeeperIds.some((id) => reserves.has(id)));
+          }
+          for (const d of s.days) {
+            expect(
+              s.assignments.filter((a) => a.task.plannedDate === d.date && a.needsReserveCall)
+                .length,
+              d.date,
+            ).toBe(d.reserveCalls);
+          }
+        },
+      ),
+    );
   });
 });
 
