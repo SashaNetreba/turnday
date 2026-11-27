@@ -30,8 +30,11 @@ export interface DayLoad {
   readonly reserveCalls: number;
 }
 
-/** NO_STAFF: no housekeeper on any day it still fitted. DEADLINE_PASSED: a carried task that no longer fits (R5g). */
-export type ShortfallReason = 'NO_STAFF' | 'DEADLINE_PASSED';
+/**
+ * NO_STAFF: no housekeeper on any day it still fitted. DEADLINE_PASSED: a carried task that no longer fits (R5g).
+ * WEEKLY_LIMIT: found when people are assigned (scheduleWeek) — a 7th shift would staff it (R9a).
+ */
+export type ShortfallReason = 'NO_STAFF' | 'DEADLINE_PASSED' | 'WEEKLY_LIMIT';
 
 /** R10a: a task that cannot be staffed — reported, never dropped. */
 export interface Shortfall {

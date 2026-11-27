@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 17 of 26 covered
-- Invariants: 15 of 23 covered
+- Rules: 20 of 26 covered
+- Invariants: 18 of 23 covered
 
 ## NOT COVERED
 
-- Rules: R7, R7a, R8, R9a, R11, R12, R13, R14, R15
-- Invariants: 4, 6, 10, 18, 20, 21, 22, 23
+- Rules: R7, R7a, R8, R13, R14, R15
+- Invariants: 4, 6, 10, 18, 20
 
 ## Rules
 
@@ -36,12 +36,12 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R7a Stable first | 0 | **NOT COVERED** |
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
 | R9 One clean per housekeeper per day | 2 | covered |
-| R9a Weekly rest | 0 | **NOT COVERED** |
+| R9a Weekly rest | 3 | covered |
 | R10 Unavailable days | 13 | covered |
 | R10a Shortfall | 11 | covered |
 | R10b Reserve | 7 | covered |
-| R11 Even distribution | 0 | **NOT COVERED** |
-| R12 Weekend rotation | 0 | **NOT COVERED** |
+| R11 Even distribution | 5 | covered |
+| R12 Weekend rotation | 1 | covered |
 | R13 Own assignment, today only | 0 | **NOT COVERED** |
 | R14 One open time entry | 0 | **NOT COVERED** |
 | R15 UTC storage | 0 | **NOT COVERED** |
@@ -70,9 +70,9 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 18 | 0 | **NOT COVERED** |
 | 19 | 1 | covered |
 | 20 | 0 | **NOT COVERED** |
-| 21 | 0 | **NOT COVERED** |
-| 22 | 0 | **NOT COVERED** |
-| 23 | 0 | **NOT COVERED** |
+| 21 | 1 | covered |
+| 22 | 1 | covered |
+| 23 | 1 | covered |
 
 ## Rules → tests
 
@@ -211,6 +211,12 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 3 / R9: no housekeeper has more than one task per day
 - packages/domain/src/R9-R10.assign-people.test.ts › R9 — one clean per housekeeper per day › R9: three cottages out on Monday with arrivals today and three regulars → each regular cleans exactly one
 
+### R9a Weekly rest
+
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 23 / R9a: in a week starting on Monday, WEEKLY_LIMIT happens only on Sunday and only for a task that cannot wait
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: A is the only regular; cottages 1–6 turn over Monday to Saturday → A has 6 shifts; Sunday’s cottage 7 is a WEEKLY_LIMIT shortfall
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: on a day with fewer filled places than tasks, the task last in R5d order loses its place
+
 ### R10 Unavailable days
 
 - packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: a housekeeper with both stableFirst and reserve makes the input invalid
@@ -250,6 +256,18 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: the reserve is called only up to the reserves available that day; the rest goes to shortfall
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: when every regular has a task, the reserve takes the task that cannot wait
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: with no reserve available, the task that cannot wait goes to shortfall
+
+### R11 Even distribution
+
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — even distribution › R11: A and B on Monday, only A on Tuesday, one place each day → Monday goes to B and Tuesday to A (1 vs 1)
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — even distribution › R11: on a tie in shifts, the one whose last shift was longest ago works — B (Monday) before A (Tuesday) on Wednesday
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — even distribution › R11: the stableFirst housekeeper, off Monday and Tuesday, works Wednesday (0 shifts vs B’s 2) — the R7a example, only who works
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 21 / R11: staffed regular places are the most possible within 6 shifts and the spread U − L the smallest — against brute force
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 22 / R11: with every regular available every day, the most and least loaded regular differ by at most 1 shift
+
+### R12 Weekend rotation
+
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — even distribution › R12: on Sunday A has 4 shifts and B 3, both are available and the bounds allow either → B works Sunday
 
 ## Invariants → tests
 
@@ -318,6 +336,18 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 19 / R5d: when a task that cannot be deferred goes to shortfall, no task that could be deferred was staffed that day
 
+### Invariant 21
+
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 21 / R11: staffed regular places are the most possible within 6 shifts and the spread U − L the smallest — against brute force
+
+### Invariant 22
+
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 22 / R11: with every regular available every day, the most and least loaded regular differ by at most 1 shift
+
+### Invariant 23
+
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 23 / R9a: in a week starting on Monday, WEEKLY_LIMIT happens only on Sunday and only for a task that cannot wait
+
 ## Unknown references
 
 Tests that reference a rule or invariant that does not exist in docs/domain-model.md.
@@ -330,6 +360,16 @@ None.
 
 ## Tests without a rule or invariant
 
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › a lower bound above what the next edge can carry is infeasible
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › a lower bound the network can carry is feasible
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › an exact total [R, R] is met only when the network carries exactly R
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › lower > upper on an edge is infeasible
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › with no lower bounds a zero flow is feasible, even with the sink unreachable
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › a bipartite assignment: 3 days × 2 people, each person at most 2 shifts → 4 of 5 places
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › a single path carries its smallest capacity
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › no path from source to sink → 0
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › the textbook network (CLRS fig. 26.1) has max flow 23
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › undoes the first shortest path through a reverse edge
 - packages/domain/src/smoke.test.ts › domain package › loads its public entry point
 
 ## Excluded (not counted)
