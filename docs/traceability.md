@@ -22,7 +22,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R1 One task per departure | 9 | covered |
 | R2 No clean without a departure | 3 | covered |
 | R3 Non-schedulable cottages | 4 | covered |
-| R4 Estimated effort | 3 | covered |
+| R4 Estimated effort | 4 | covered |
 | R5 Time window | 12 | covered |
 | R5a Late checkout / early check-in | 17 | covered |
 | R5b At risk | 6 | covered |
@@ -110,6 +110,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 / R5 — properties › R4: estimatedMinutes always equals the config value for the cottage type
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: a config change (STABLE 240) changes estimatedMinutes without code changes
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: estimatedMinutes comes from the config by cottage type
+- packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: every task carries its cottage type — cottage 1 STABLE, cottage 11 PREMIUM
 
 ### R5 Time window
 

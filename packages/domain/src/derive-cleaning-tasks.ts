@@ -61,6 +61,7 @@ export function deriveCleaningTasks(
       return {
         bookingRef: first.externalRef,
         cottageNumber: first.cottageNumber,
+        cottageType: type, // R4, used by R7a
         kind: 'DEPARTURE',
         departureDate: first.departureDate,
         plannedDate: first.departureDate,

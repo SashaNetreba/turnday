@@ -1,3 +1,4 @@
+import type { CottageType } from './cottage.js';
 import type { LocalDate } from './local-date.js';
 import type { LocalDateTime } from './local-date-time.js';
 
@@ -5,6 +6,8 @@ import type { LocalDateTime } from './local-date-time.js';
 export interface CleaningTask {
   readonly bookingRef: string;
   readonly cottageNumber: number;
+  /** R4: the cottage's type; R7a chooses by it. */
+  readonly cottageType: CottageType;
   readonly kind: 'DEPARTURE';
   readonly departureDate: LocalDate;
   readonly plannedDate: LocalDate;
