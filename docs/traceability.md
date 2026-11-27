@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 16 of 26 covered
-- Invariants: 13 of 23 covered
+- Rules: 17 of 26 covered
+- Invariants: 15 of 23 covered
 
 ## NOT COVERED
 
-- Rules: R7, R7a, R8, R9, R9a, R11, R12, R13, R14, R15
-- Invariants: 2, 3, 4, 6, 10, 18, 20, 21, 22, 23
+- Rules: R7, R7a, R8, R9a, R11, R12, R13, R14, R15
+- Invariants: 4, 6, 10, 18, 20, 21, 22, 23
 
 ## Rules
 
@@ -35,9 +35,9 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R7 Any housekeeper, any cottage | 0 | **NOT COVERED** |
 | R7a Stable first | 0 | **NOT COVERED** |
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
-| R9 One clean per housekeeper per day | 0 | **NOT COVERED** |
+| R9 One clean per housekeeper per day | 2 | covered |
 | R9a Weekly rest | 0 | **NOT COVERED** |
-| R10 Unavailable days | 12 | covered |
+| R10 Unavailable days | 13 | covered |
 | R10a Shortfall | 11 | covered |
 | R10b Reserve | 7 | covered |
 | R11 Even distribution | 0 | **NOT COVERED** |
@@ -51,8 +51,8 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | Invariant | Tests | Status |
 |---|---|---|
 | 1 | 2 | covered |
-| 2 | 0 | **NOT COVERED** |
-| 3 | 0 | **NOT COVERED** |
+| 2 | 1 | covered |
+| 3 | 1 | covered |
 | 4 | 0 | **NOT COVERED** |
 | 5 | 1 | covered |
 | 6 | 0 | **NOT COVERED** |
@@ -206,6 +206,11 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike
 
+### R9 One clean per housekeeper per day
+
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 3 / R9: no housekeeper has more than one task per day
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 — one clean per housekeeper per day › R9: three cottages out on Monday with arrivals today and three regulars → each regular cleans exactly one
+
 ### R10 Unavailable days
 
 - packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: a housekeeper with both stableFirst and reserve makes the input invalid
@@ -220,6 +225,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: two housekeepers with the same id make the input invalid
 - packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: with every entry present and all three available on Monday, Monday's headcount is 2 regular and 1 reserve
 - packages/domain/src/R10.availability.test.ts › R10 — properties › R10: for valid input, regular and reserve on each day = active housekeepers without and with reserve available that day
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 2 / R10: no housekeeper is assigned on a day they are unavailable
 
 ### R10a Shortfall
 
@@ -251,6 +257,14 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 - packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount
 - packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
+
+### Invariant 2
+
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 2 / R10: no housekeeper is assigned on a day they are unavailable
+
+### Invariant 3
+
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 3 / R9: no housekeeper has more than one task per day
 
 ### Invariant 5
 

@@ -492,3 +492,119 @@ export const availabilityScenarioArb: fc.Arbitrary<{
       }));
     }),
 );
+
+// ---- Team weeks: housekeepers + availability + bookings, for the assignment step (R9, R9a, R10, R11, R12) ----
+
+/** A generated team week: the input of scheduleWeek, apart from cottages and config. */
+export interface TeamWeekScenario {
+  readonly week: PlanningWeek;
+  readonly housekeepers: Housekeeper[];
+  readonly availability: Availability[];
+  readonly bookings: Booking[];
+}
+
+/** One departure in a team week: the next guest arrives the same day, `gap` days later, or never. */
+interface TeamDeparture {
+  readonly cottage: number;
+  readonly outOffset: number;
+  readonly next: 'SAME_DAY' | 'NONE' | number;
+}
+
+const teamCottageArb = fc.constantFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15);
+
+/** Departures in `week`; same-day arrivals weighted up, so weekend tasks cannot wait and reserves get called. */
+const teamDeparturesArb = (maxLength: number): fc.Arbitrary<TeamDeparture[]> =>
+  fc.array(
+    fc.record({
+      cottage: teamCottageArb,
+      outOffset: fc.integer({ min: 0, max: 6 }),
+      next: fc.oneof(
+        { weight: 3, arbitrary: fc.constant<'SAME_DAY'>('SAME_DAY') },
+        { weight: 1, arbitrary: fc.constant<'NONE'>('NONE') },
+        { weight: 1, arbitrary: fc.integer({ min: 1, max: 3 }) },
+      ),
+    }),
+    { maxLength },
+  );
+
+/**
+ * Availability for every housekeeper (all active) on every day: `true` with weight 3 against 1, so most days have
+ * people and some do not.
+ */
+const teamAvailabilityArb = (
+  week: PlanningWeek,
+  ids: readonly string[],
+): fc.Arbitrary<Availability[]> =>
+  fc
+    .array(
+      fc.array(
+        fc.oneof(
+          { weight: 3, arbitrary: fc.constant(true) },
+          { weight: 1, arbitrary: fc.constant(false) },
+        ),
+        {
+          minLength: 7,
+          maxLength: 7,
+        },
+      ),
+      { minLength: ids.length, maxLength: ids.length },
+    )
+    .map((perPerson) =>
+      ids.flatMap((housekeeperId, p) =>
+        daysOf(week).map((date, d) => ({
+          housekeeperId,
+          date,
+          available: perPerson[p]?.[d] ?? false,
+        })),
+      ),
+    );
+
+function teamBookings(week: PlanningWeek, departures: readonly TeamDeparture[]): Booking[] {
+  return departures.flatMap(({ cottage, outOffset, next }, i) => {
+    const out = addDays(week.start, outOffset);
+    const leaving = booking(`L${String(i)}`, cottage, addDays(out, -2), out);
+    if (next === 'NONE') return [leaving];
+    const arrival = next === 'SAME_DAY' ? out : addDays(out, next);
+    return [leaving, booking(`A${String(i)}`, cottage, arrival, addDays(arrival, 9))];
+  });
+}
+
+/** Regulars H0…H(n−1), reserves R0…R(m−1) — so every regular's id sorts before every reserve's. */
+const teamArb = (
+  week: PlanningWeek,
+  regulars: { min: number; max: number },
+  reserves: { min: number; max: number },
+  maxDepartures: number,
+): fc.Arbitrary<TeamWeekScenario> =>
+  fc.tuple(fc.integer(regulars), fc.integer(reserves)).chain(([nRegular, nReserve]) => {
+    const housekeepers = [
+      ...Array.from({ length: nRegular }, (_, i) => housekeeper(`H${String(i)}`)),
+      ...Array.from({ length: nReserve }, (_, i) =>
+        housekeeper(`R${String(i)}`, { reserve: true }),
+      ),
+    ];
+    return fc
+      .tuple(
+        teamAvailabilityArb(
+          week,
+          housekeepers.map((h) => h.id),
+        ),
+        teamDeparturesArb(maxDepartures),
+      )
+      .map(([availability, departures]) => ({
+        week,
+        housekeepers,
+        availability,
+        bookings: teamBookings(week, departures),
+      }));
+  });
+
+/**
+ * Team weeks for the assignment properties: (a) broad — 1–8 regulars, 0–2 reserves, up to 25 departures, any week
+ * start; (b) reserve-heavy — 1–2 regulars, 2 reserves, so days run out of regulars and reserves get called.
+ * Availability is random, so lower ids are often unavailable on a day with places.
+ */
+export const teamWeekScenarioArb: fc.Arbitrary<TeamWeekScenario> = fc.oneof(
+  weekArb.chain((w) => teamArb(w, { min: 1, max: 8 }, { min: 0, max: 2 }, 25)),
+  weekArb.chain((w) => teamArb(w, { min: 1, max: 2 }, { min: 2, max: 2 }, 20)),
+);
