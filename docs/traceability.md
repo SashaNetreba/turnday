@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 21 of 27 covered
-- Invariants: 22 of 26 covered
+- Rules: 22 of 27 covered
+- Invariants: 23 of 26 covered
 
 ## NOT COVERED
 
-- Rules: R5h, R7, R8, R13, R14, R15
-- Invariants: 4, 6, 10, 25
+- Rules: R7, R8, R13, R14, R15
+- Invariants: 4, 6, 10
 
 ## Rules
 
@@ -31,7 +31,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5e Deferred tasks on the new day | 1 | covered |
 | R5f Weekend | 10 | covered |
 | R5g Carry-over | 9 | covered |
-| R5h Weekend alternative | 0 | **NOT COVERED** |
+| R5h Weekend alternative | 7 | covered |
 | R6 Default crew size | 2 | covered |
 | R7 Any housekeeper, any cottage | 0 | **NOT COVERED** |
 | R7a Stable first | 14 | covered |
@@ -75,7 +75,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 22 | 1 | covered |
 | 23 | 1 | covered |
 | 24 | 1 | covered |
-| 25 | 0 | **NOT COVERED** |
+| 25 | 1 | covered |
 | 26 | 1 | covered |
 
 ## Rules → tests
@@ -205,6 +205,16 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: carried tasks are candidates on the next week's first day and compete by the same priority
 - packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: two carried tasks for the same cottage and departure date are rejected as invalid input, listing them
 - packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
+
+### R5h Weekend alternative
+
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — properties › invariant 25 / R5h: alternatives only on deferred weekend tasks, on the earliest weekday a reserve was free; a reserve is offered at most once a day and, counting every offer, has at most 6 shifts
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: Friday 11 Dec, 6 departures and 5 regulars; cottage 12 (next guest Saturday 16:00) is deferred to Saturday → alternative Friday 11, reserve R; the schedule is unchanged
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: R works Monday to Thursday, Saturday and Sunday (6 shifts) and is free on Friday → cottage 3, deferred Friday → Saturday, gets no alternative (R9a)
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: a task deferred Monday → Tuesday gets no alternative, even with R free on Monday — only weekend deferrals do
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: cottage 3 out Thursday (next guest Saturday), deferred Thursday and Friday while R is free both days → alternative on the earliest weekday, Thursday
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: two Friday departures deferred to Saturday, R free only on Friday → the first in R5d order (3) gets Friday R, the second (4) none — the alternatives fit together
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — which reserve › R5h: R1 and R2 both free on Friday; R1 was called Thursday (1 shift), R2 has none → the alternative names R2 (fewest shifts)
 
 ### R6 Default crew size
 
@@ -394,6 +404,10 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### Invariant 24
 
 - packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 24 / R7a: stableFirst gets premium only when every regular-staffed stable task is with a stableFirst; no other regular has a better stable task; no reserve has a stable task that cannot wait while a stableFirst has a premium one that cannot wait
+
+### Invariant 25
+
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — properties › invariant 25 / R5h: alternatives only on deferred weekend tasks, on the earliest weekday a reserve was free; a reserve is offered at most once a day and, counting every offer, has at most 6 shifts
 
 ### Invariant 26
 

@@ -13,6 +13,7 @@ import { addDays } from './local-date.js';
 import { fitsOn, planDays, type Shortfall, type WeekPlan } from './plan-week.js';
 import { DAYS_IN_PLANNING_WEEK, lastDayOf, type PlanningWeek } from './planning-week.js';
 import type { SchedulingConfig } from './scheduling-config.js';
+import { weekendAlternatives, type WeekendAlternative } from './weekend-alternative.js';
 
 /** Who cleans a staffed task (docs/domain-model.md §3). */
 export interface Assignment {
@@ -21,6 +22,8 @@ export interface Assignment {
   readonly housekeeperIds: readonly string[];
   /** R10b: ⇔ the crew includes a reserve (day-planning call or R9a fallback); the manager confirms the call. */
   readonly needsReserveCall: boolean;
+  /** R5h: only on a task deferred onto Saturday or Sunday — a weekday a reserve was free; the plan is unchanged. */
+  readonly weekendAlternative?: WeekendAlternative;
 }
 
 /** WeekPlan + who cleans each staffed task — output of scheduleWeek (ADR 0004, step 2). */
@@ -143,13 +146,25 @@ export function scheduleWeek({
     }
   });
 
+  // R5h: mark weekend deferrals with a weekday a reserve was free — a suggestion, the schedule is unchanged.
+  const alternatives = weekendAlternatives(
+    assignments,
+    housekeepers.filter((h) => h.active && h.reserve),
+    isAvailable,
+    week,
+    config,
+  );
+
   const lost = new Set(weeklyLimit.map((s) => s.task));
   return {
     ...plan,
     tasks: plan.tasks.filter((t) => !lost.has(t)),
     days: plan.days.map((d) => ({ ...d, reserveCalls: reserveCalls.get(d.date) ?? 0 })),
     shortfall: [...plan.shortfall, ...weeklyLimit],
-    assignments,
+    assignments: assignments.map((a) => {
+      const weekendAlternative = alternatives.get(a.task);
+      return weekendAlternative === undefined ? a : { ...a, weekendAlternative };
+    }),
   };
 }
 

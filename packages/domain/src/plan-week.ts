@@ -173,8 +173,9 @@ export function planDays({ tasks, headcount, week, config, carriedOver = [] }: P
 /**
  * R5d: tasks that cannot be deferred to `next` come first, then the ones that can (invariant 19); within each group
  * `byDeadline`. Total order on distinct tasks, so the input order never changes the plan (invariant 7).
+ * Exported for the assignment step (R5h order); not exported from the package.
  */
-function byPriorityOn(
+export function byPriorityOn(
   next: LocalDate,
   config: SchedulingConfig,
 ): (a: CleaningTask, b: CleaningTask) => number {

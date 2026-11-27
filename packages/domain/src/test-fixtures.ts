@@ -862,6 +862,77 @@ export const reserveFallbackWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
   });
 
 /**
+ * Monday–Sunday weeks for the weekend alternative (R5h, invariant 25): 1–3 regulars and 1–2 reserves with random
+ * availability (mostly available). Wednesday to Friday have 0–3 same-day turnovers each (they take the regulars) and
+ * 0–3 departures whose next guest arrives on Saturday or Sunday at 16:00 — they can wait to the weekend but not until
+ * Monday, so they are often deferred onto Saturday or Sunday while a reserve is free on a weekday. Several such tasks
+ * often compete for one reserve.
+ */
+export const weekendDeferralWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
+  .tuple(
+    fc.integer({ min: 1, max: 3 }),
+    fc.integer({ min: 1, max: 2 }),
+    fc.array(
+      fc.record({
+        turnovers: fc.integer({ min: 0, max: 3 }),
+        waiters: fc.array(fc.constantFrom(5, 6), { maxLength: 3 }), // next arrival offset: Sat or Sun
+      }),
+      { minLength: 3, maxLength: 3 },
+    ),
+  )
+  .chain(([nRegular, nReserve, wedToFri]) => {
+    const week: PlanningWeek = { start: propertyBase };
+    const housekeepers = [
+      ...Array.from({ length: nRegular }, (_, i) => housekeeper(`H${String(i)}`)),
+      ...Array.from({ length: nReserve }, (_, i) =>
+        housekeeper(`R${String(i)}`, { reserve: true }),
+      ),
+    ];
+    // One departure per cottage: the list is cut to the 13 schedulable cottages and numbered in order.
+    const plannedDepartures = wedToFri.flatMap(({ turnovers, waiters }, i) => {
+      const day = addDays(week.start, 2 + i); // Wednesday, Thursday, Friday
+      return [
+        ...Array.from({ length: turnovers }, () => ({ day, arrival: day })),
+        ...waiters.map((offset) => ({ day, arrival: addDays(week.start, offset) })),
+      ];
+    });
+    const bookings = plannedDepartures
+      .slice(0, schedulableCottages.length)
+      .flatMap(({ day, arrival }, k) => departure(schedulableCottages[k] ?? 1, day, arrival));
+    return teamAvailabilityArb(
+      week,
+      housekeepers.map((h) => h.id),
+    ).map((availability) => ({ week, housekeepers, availability, bookings }));
+  });
+
+/**
+ * Monday–Sunday weeks where the reserve is at the 6-shift limit when a weekend alternative would be offered (R5h,
+ * invariant 25): R0 is available every day; H0, the only regular, only on Friday and Saturday. Monday to Thursday one
+ * turnover a day goes to R0 (4 shifts). Friday H0 cleans a turnover and 1–2 cottages with the next guest on Saturday
+ * wait; Saturday one more turnover → H0 and R0 (5); Sunday 0–1 turnover → R0 (6). R0 is free on Friday but often full.
+ */
+export const reserveAtLimitWeekendArb: fc.Arbitrary<TeamWeekScenario> = fc
+  .tuple(fc.integer({ min: 1, max: 2 }), fc.integer({ min: 0, max: 1 }))
+  .map(([waiters, sundayTurnovers]) => {
+    const week: PlanningWeek = { start: propertyBase };
+    const day = (i: number) => addDays(week.start, i);
+    return {
+      week,
+      housekeepers: [housekeeper('H0'), housekeeper('R0', { reserve: true })],
+      availability: availableAllWeek(week, ['H0', 'R0'], {
+        H0: [0, 1, 2, 3, 6].map(day),
+      }),
+      bookings: [
+        ...[1, 2, 3, 4].flatMap((c, i) => departure(c, day(i), day(i))),
+        ...departure(5, day(4), day(4)),
+        ...[6, 7].slice(0, waiters).flatMap((c) => departure(c, day(4), day(5))),
+        ...departure(8, day(5), day(5)),
+        ...(sundayTurnovers > 0 ? departure(9, day(6), day(6)) : []),
+      ],
+    };
+  });
+
+/**
  * Weeks from Tuesday where a task that can wait loses its regular place on the last day (R9a example, ADR 0004
  * trade-off): H0, the only regular, is available every day and cleans one turnover a day Tuesday to Sunday (6
  * shifts); on Monday a random cottage departs with its next guest 1–3 days later, or none — it can wait, day planning

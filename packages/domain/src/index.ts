@@ -33,3 +33,4 @@ export {
 } from './schedule-week.js';
 export type { SchedulingConfig } from './scheduling-config.js';
 export type { TimeOverride, TimeOverrideKind } from './time-override.js';
+export type { WeekendAlternative } from './weekend-alternative.js';
