@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 20 of 26 covered
-- Invariants: 19 of 23 covered
+- Rules: 22 of 27 covered
+- Invariants: 23 of 26 covered
 
 ## NOT COVERED
 
-- Rules: R7, R7a, R8, R13, R14, R15
-- Invariants: 4, 6, 10, 18
+- Rules: R7, R8, R13, R14, R15
+- Invariants: 4, 6, 10
 
 ## Rules
 
@@ -22,7 +22,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R1 One task per departure | 9 | covered |
 | R2 No clean without a departure | 3 | covered |
 | R3 Non-schedulable cottages | 4 | covered |
-| R4 Estimated effort | 3 | covered |
+| R4 Estimated effort | 4 | covered |
 | R5 Time window | 12 | covered |
 | R5a Late checkout / early check-in | 17 | covered |
 | R5b At risk | 6 | covered |
@@ -31,16 +31,17 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R5e Deferred tasks on the new day | 1 | covered |
 | R5f Weekend | 10 | covered |
 | R5g Carry-over | 9 | covered |
+| R5h Weekend alternative | 7 | covered |
 | R6 Default crew size | 2 | covered |
 | R7 Any housekeeper, any cottage | 0 | **NOT COVERED** |
-| R7a Stable first | 0 | **NOT COVERED** |
+| R7a Stable first | 14 | covered |
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
 | R9 One clean per housekeeper per day | 2 | covered |
 | R9a Weekly rest | 7 | covered |
 | R10 Unavailable days | 13 | covered |
 | R10a Shortfall | 11 | covered |
-| R10b Reserve | 9 | covered |
-| R11 Even distribution | 6 | covered |
+| R10b Reserve | 12 | covered |
+| R11 Even distribution | 7 | covered |
 | R12 Weekend rotation | 1 | covered |
 | R13 Own assignment, today only | 0 | **NOT COVERED** |
 | R14 One open time entry | 0 | **NOT COVERED** |
@@ -66,13 +67,16 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 14 | 2 | covered |
 | 15 | 1 | covered |
 | 16 | 1 | covered |
-| 17 | 1 | covered |
-| 18 | 0 | **NOT COVERED** |
+| 17 | 2 | covered |
+| 18 | 1 | covered |
 | 19 | 1 | covered |
 | 20 | 1 | covered |
 | 21 | 1 | covered |
 | 22 | 1 | covered |
 | 23 | 1 | covered |
+| 24 | 1 | covered |
+| 25 | 1 | covered |
+| 26 | 1 | covered |
 
 ## Rules → tests
 
@@ -106,6 +110,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 / R5 — properties › R4: estimatedMinutes always equals the config value for the cottage type
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: a config change (STABLE 240) changes estimatedMinutes without code changes
 - packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: estimatedMinutes comes from the config by cottage type
+- packages/domain/src/R4-R5.time-windows.test.ts › R4 — estimated effort › R4: every task carries its cottage type — cottage 1 STABLE, cottage 11 PREMIUM
 
 ### R5 Time window
 
@@ -201,10 +206,37 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R5g.carry-over.test.ts › R5g — carry-over › R5g: two carried tasks for the same cottage and departure date are rejected as invalid input, listing them
 - packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
 
+### R5h Weekend alternative
+
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — properties › invariant 25 / R5h: alternatives only on deferred weekend tasks, on the earliest weekday a reserve was free; a reserve is offered at most once a day and, counting every offer, has at most 6 shifts
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: Friday 11 Dec, 6 departures and 5 regulars; cottage 12 (next guest Saturday 16:00) is deferred to Saturday → alternative Friday 11, reserve R; the schedule is unchanged
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: R works Monday to Thursday, Saturday and Sunday (6 shifts) and is free on Friday → cottage 3, deferred Friday → Saturday, gets no alternative (R9a)
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: a task deferred Monday → Tuesday gets no alternative, even with R free on Monday — only weekend deferrals do
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: cottage 3 out Thursday (next guest Saturday), deferred Thursday and Friday while R is free both days → alternative on the earliest weekday, Thursday
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — weekend alternative › R5h: two Friday departures deferred to Saturday, R free only on Friday → the first in R5d order (3) gets Friday R, the second (4) none — the alternatives fit together
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — which reserve › R5h: R1 and R2 both free on Friday; R1 was called Thursday (1 shift), R2 has none → the alternative names R2 (fewest shifts)
+
 ### R6 Default crew size
 
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike
+
+### R7a Stable first
+
+- packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 17 / R10b / R7a: after assignment (R9a fallback, R7a swap) every assignment with needsReserveCall cleans a task that cannot wait on its planned day
+- packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 18 / R7a / R11: stableFirst flags change only which cottage each working housekeeper cleans — not what is staffed, deferred or short, nor who works each day
+- packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 24 / R7a: stableFirst gets premium only when every regular-staffed stable task is with a stableFirst; no other regular has a better stable task; no reserve has a stable task that cannot wait while a stableFirst has a premium one that cannot wait
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: 11, 12, 15 out Monday with arrivals today; stableFirst A, regulars B and C → B 11, C 12, A 15; no reserve call
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: 3 (arrival today), 5 (next arrival Tuesday) and 11 (arrival today 15:30) out Monday; stableFirst A, regular B → 5 deferred to Tuesday, A 3, B 11; no reserve call
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: S (stableFirst) the only regular, reserve R; Monday 11 (arrival 15:30) and 3 (arrival 16:00), neither can wait → swap: S cleans 3, R cleans 11 and still needs the call
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: leftover premium — stableFirst S1 (1 shift before Tuesday) and S2 (0); Tuesday only 11 (check-in 15:30) and 12 → S2 (fewest shifts) takes 11, first in R5d order; S1 takes 12
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: premium fairness — A and B, no flags; Monday 3 and 11, Tuesday 4 and 12, all with arrivals that day → Monday A 11, B 3; Tuesday B 12 (0 premium vs 1), A 4
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: stable 2 (check-in 15:00), 7 and 9 (16:00) all with arrivals today; stableFirst A, regulars B and C → A 7 (latest deadline, lowest cottage on the tie), B 2, C 9
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: stable 3 and premium 11 out Monday, both with arrivals today; stableFirst A, regular B → A 3, B 11
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: stable 4 (next arrival Wednesday), 6 (no next arrival) and 8 (next arrival Thursday) out Monday; stableFirst A, regulars B and C → A 6, then B 4, C 8 by R5d order and lowest id
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: three stable and one premium for four stableFirst — S4 (0 shifts) takes premium 11; S1 and S2 (2 shifts each) choose first, lowest id on the tie: S1 6 (no next arrival), S2 4 (next arrival Friday), S3 (1 shift) 2
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: two stableFirst with equal shifts (0); stable 3 and premium 11 out Monday → the lowest id (A) takes 11, B gets 3
+- packages/domain/src/R7a.stable-first.test.ts › R7a — stable first › R7a: two stableFirst — S1 with 2 shifts before Wednesday, S2 with 1; Wednesday stable 3 and premium 11 → S2 (fewest shifts) takes 11, S1 gets 3
 
 ### R9 One clean per housekeeper per day
 
@@ -261,6 +293,9 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: when every regular has a task, the reserve takes the task that cannot wait
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: with no reserve available, the task that cannot wait goes to shortfall
 - packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 7 / R11 / R10b: shuffling the order of the housekeepers in the input does not change the schedule
+- packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 17 / R10b / R7a: after assignment (R9a fallback, R7a swap) every assignment with needsReserveCall cleans a task that cannot wait on its planned day
+- packages/domain/src/R9a.weekly-limit.test.ts › R10b — properties › invariant 26 / R10b: needsReserveCall ⇔ the crew includes a reserve; a day’s reserveCalls counts those assignments
+- packages/domain/src/R9a.weekly-limit.test.ts › R10b — which reserve is called › R10b: six same-day turnovers on Monday and five regulars → only the reserve’s assignment (cottage 6) has needsReserveCall
 - packages/domain/src/R9a.weekly-limit.test.ts › R10b — which reserve is called › R10b: the reserve with the fewest shifts this week is called; on a tie the lowest id — R1, R2, R1 Monday to Wednesday
 
 ### R11 Even distribution
@@ -271,6 +306,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 21 / R11: staffed regular places are the most possible within 6 shifts and the spread U − L the smallest — against brute force
 - packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 22 / R11: with every regular available every day, the most and least loaded regular differ by at most 1 shift
 - packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 7 / R11 / R10b: shuffling the order of the housekeepers in the input does not change the schedule
+- packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 18 / R7a / R11: stableFirst flags change only which cottage each working housekeeper cleans — not what is staffed, deferred or short, nor who works each day
 
 ### R12 Weekend rotation
 
@@ -339,6 +375,11 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### Invariant 17
 
 - packages/domain/src/R10b.reserve.test.ts › R10b — properties › invariant 17 / R10b: a reserve is called only when every regular has a task, and only for tasks that cannot be deferred
+- packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 17 / R10b / R7a: after assignment (R9a fallback, R7a swap) every assignment with needsReserveCall cleans a task that cannot wait on its planned day
+
+### Invariant 18
+
+- packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 18 / R7a / R11: stableFirst flags change only which cottage each working housekeeper cleans — not what is staffed, deferred or short, nor who works each day
 
 ### Invariant 19
 
@@ -359,6 +400,18 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 ### Invariant 23
 
 - packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 23 / R9a: in a week starting on Monday, WEEKLY_LIMIT happens only on Sunday and only for a task that cannot wait
+
+### Invariant 24
+
+- packages/domain/src/R7a.stable-first.test.ts › R7a — properties › invariant 24 / R7a: stableFirst gets premium only when every regular-staffed stable task is with a stableFirst; no other regular has a better stable task; no reserve has a stable task that cannot wait while a stableFirst has a premium one that cannot wait
+
+### Invariant 25
+
+- packages/domain/src/R5h.weekend-alternative.test.ts › R5h — properties › invariant 25 / R5h: alternatives only on deferred weekend tasks, on the earliest weekday a reserve was free; a reserve is offered at most once a day and, counting every offer, has at most 6 shifts
+
+### Invariant 26
+
+- packages/domain/src/R9a.weekly-limit.test.ts › R10b — properties › invariant 26 / R10b: needsReserveCall ⇔ the crew includes a reserve; a day’s reserveCalls counts those assignments
 
 ## Unknown references
 

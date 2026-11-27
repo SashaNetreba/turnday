@@ -41,6 +41,21 @@ describe('R4 — estimated effort', () => {
     expect(taskFor(tasks, 11, '2026-11-17').estimatedMinutes).toBe(300);
   });
 
+  it('R4: every task carries its cottage type — cottage 1 STABLE, cottage 11 PREMIUM', () => {
+    const tasks = deriveCleaningTasks(
+      [
+        booking('S/1', 1, '2026-11-14', '2026-11-17'),
+        booking('P/1', 11, '2026-11-14', '2026-11-17'),
+      ],
+      cottages,
+      week,
+      config,
+    );
+
+    expect(taskFor(tasks, 1, '2026-11-17').cottageType).toBe('STABLE');
+    expect(taskFor(tasks, 11, '2026-11-17').cottageType).toBe('PREMIUM');
+  });
+
   it('R4: a config change (STABLE 240) changes estimatedMinutes without code changes', () => {
     const changed: SchedulingConfig = {
       ...config,

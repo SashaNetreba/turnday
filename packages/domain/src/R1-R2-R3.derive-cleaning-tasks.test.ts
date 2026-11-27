@@ -31,6 +31,7 @@ describe('deriveCleaningTasks — examples', () => {
       {
         bookingRef: 'A/1',
         cottageNumber: 1,
+        cottageType: 'STABLE',
         kind: 'DEPARTURE',
         departureDate: '2026-11-17',
         plannedDate: '2026-11-17',
@@ -44,6 +45,7 @@ describe('deriveCleaningTasks — examples', () => {
       {
         bookingRef: 'B/1',
         cottageNumber: 11,
+        cottageType: 'PREMIUM',
         kind: 'DEPARTURE',
         departureDate: '2026-11-20',
         plannedDate: '2026-11-20',
