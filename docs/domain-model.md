@@ -1,6 +1,6 @@
 # Domain Model — Housekeeping Scheduler
 
-> Status: **v0.6 — ready for implementation** · Owner: Oleksandra Netreba
+> Status: **v0.7 — ready for implementation** · Owner: Oleksandra Netreba
 > This document describes the business domain independently of any framework, database or UI.
 > Everything here lives in `packages/domain` and is covered by unit and property-based tests.
 
@@ -48,6 +48,7 @@ Goals:
 | **Shortfall** | A task that cannot be staffed before its deadline — reported, never dropped (R10a). |
 | **Week schedule** | `WeekSchedule`: the week plan (tasks per day, shortfall, carry-over) plus who cleans each task (ADR 0004, step 2: R9, R9a, R11, R12). |
 | **Carry-over** | A task still waiting after the planning week; it moves into the next week's planning (R5g). |
+| **Weekend alternative** | A weekday on which a free reserve could have cleaned a task that was deferred onto Saturday or Sunday. The manager chooses; the plan is unchanged (R5h). |
 
 ---
 
@@ -91,6 +92,7 @@ Availability                  # R10: required for every active housekeeper on ev
 CleaningTask                  # derived from bookings, never entered manually
   bookingRef                  # Booking.externalRef of the departing booking (lowest among duplicates, R1)
   cottageNumber
+  cottageType: STABLE | PREMIUM # R4: the cottage's type; R7a chooses by it
   kind: DEPARTURE
   departureDate               # when the guest leaves
   plannedDate                 # when it is cleaned (= departureDate, or later if deferred, R5c)
@@ -134,7 +136,10 @@ Assignment
   task: CleaningTask          # the staffed task, as in shortfall entries
   housekeeperIds: [id]        # crew
   manualOverride: boolean     # e.g. manager added a 2nd person because it's very dirty
-  needsReserveCall: boolean   # R10b: the crew includes a reserve; the manager confirms the call
+  needsReserveCall: boolean   # R10b: ⇔ the crew includes a reserve (day-planning call or R9a fallback);
+                              # the manager confirms the call
+  weekendAlternative?:        # R5h: only on a task deferred onto Saturday or Sunday
+    { date, housekeeperIds }  # the earliest weekday a reserve was free, and that reserve (requiredCrewSize ids)
 
 TimeEntry
   assignmentId
@@ -275,23 +280,50 @@ TimeEntry
   finished on the week's first day (`start + workdayStart + estimatedMinutes > deadline`) goes to shortfall with reason
   `DEADLINE_PASSED`. A carried task must have departed before the week starts, and two carried tasks for the same
   cottage and departure date are not allowed (invariant 11); otherwise the input is invalid.
+- **R5h. Weekend alternative.** The plan stays as it is: a task that can wait may still be deferred onto Saturday or
+  Sunday (R5c, R5f). But when a task that was **deferred** is planned on a Saturday or Sunday, and a reserve
+  housekeeper was **free** on a weekday from its departure date up to the day before its planned date (within the
+  planning week), the task is marked with a **weekend alternative**: the **earliest** such weekday (departure day
+  first) and that reserve.
+  - **Free** means: active, available that day, not assigned that day, and fewer than 6 shifts this week, counting
+    alternatives already offered as shifts (R9a). Among several free reserves the one with the fewest shifts this week
+    (offers included) is offered; ties by lowest id (as in R10b).
+  - **Only weekend deferrals.** A task deferred onto a weekday, or cleaned on its departure day, never gets one.
+  - **The alternatives fit together.** Weekend tasks are taken in planned-date order, then R5d order; a reserve is
+    offered at most once per weekday. So the manager can accept every alternative and R9 and R9a still hold.
+  - **A suggestion, not a reserve call.** R10b and invariant 17 apply to the schedule, which does not change. The
+    manager chooses in the UI later (§8 backlog).
+  Example (week Mon 7 – Sun 13 Dec 2026): Friday 11 has 6 departures and 5 regulars; five of the cottages have
+  arrivals that day. Cottage 12's next guest arrives Saturday 12 at 16:00. It fits on Saturday
+  (10:00 + 300 = 15:00 ≤ 16:00) but cannot wait until Monday, so it is deferred to Saturday. Reserve R was free on
+  Friday → alternative "Friday 11, R".
 
 ### Crew
 - **R6. Default crew size.** Default crew size is 1 (one housekeeper — one cottage), for stable **and** premium. Every task gets
   `requiredCrewSize = 1`; only R8 may raise it.
 - **R7. Any housekeeper, any cottage.** A housekeeper cleans any cottage alone, stable or premium (crew of 1, R6).
   There is no pair-only rule.
-- **R7a. Stable first.** Applies after the day's cleaned tasks are decided (R5d, R5c, R10b) and after R11 has decided
-  **who** works today. R7a only decides **which cottage** each of the people already working cleans. `stableFirst`
-  never makes a housekeeper skip a shift.
-  - Among the stable tasks cleaned today, a working housekeeper with `stableFirst` gets the one with **no arrival
-    today**; if every one has an arrival today, the one with the **latest deadline**.
-  - She is given a premium task only when no other **working** regular housekeeper is free for it — but she still
-    comes before any reserve housekeeper (R10b).
-  - Her preference never changes which tasks are cleaned today, nor who works: it never causes a task with an arrival
-    today to need the reserve, to be deferred or to go to shortfall.
-  - Several `stableFirst` housekeepers working the same day each get a stable task first by the same rule. If there
-    are not enough stable tasks, the one with the fewest shifts this week takes the premium task; ties by lowest id.
+- **R7a. Stable first.** Applies after the day's tasks are decided (R5d, R5c, R10b) and after R11 has decided **who**
+  works today. R7a only decides **which cottage** each working housekeeper cleans: first among the tasks staffed by
+  regular places that day, then by a swap with a reserve (below). `stableFirst` never makes a housekeeper skip a
+  shift, and never changes which tasks are staffed, deferred or in shortfall (invariant 18).
+  - **Stable order:** latest deadline first — a task with no deadline counts as latest, so a task with no arrival today
+    always comes before one with an arrival today; on a tie, lowest cottage number first.
+  - **`stableFirst` housekeepers come first.** A working housekeeper with `stableFirst` **always** gets a stable task —
+    the first one left in stable order — unless more `stableFirst` housekeepers work than there are stable tasks. Then
+    the ones with the **fewest shifts this week** (before today; ties by lowest id) go without and take premium
+    tasks. The others choose in the order **most shifts this week first** (the most tired gets the calmest), ties by
+    lowest id.
+  - **Other working regulars.** Premium tasks, in R5d order, each go to the one who has had the **fewest premium tasks
+    this week** (before today); ties by lowest id. Then the remaining stable tasks, in R5d order, go to the rest by
+    lowest id.
+  - **Leftover premium.** `stableFirst` housekeepers without a stable task take the premium tasks the others did not,
+    in R5d order — fewest shifts this week first, ties by lowest id.
+  - **Before a reserve.** If a `stableFirst` regular then has a premium task while a reserve cleans a stable task that
+    day, they swap — only when **both** tasks cannot wait (R5c), so the reserve still cleans only a task that cannot
+    wait (R10b). Several pairs: the `stableFirst` housekeepers in the order they took premium, the reserves' stable
+    tasks in stable order. The swap changes only who cleans which cottage; `needsReserveCall` follows the crew and the
+    day's `reserveCalls` stays the same.
   Examples (cottages 1–10 stable; 11, 12, 15 premium):
   - Monday: departures 11, 12, 15, all with arrivals today, no stable departures. The `stableFirst` housekeeper and two
     other regulars work → the two others take 11 and 12, she takes 15. The reserve is not called.
@@ -303,6 +335,17 @@ TimeEntry
   - Week from Monday: the `stableFirst` housekeeper is unavailable Monday and Tuesday; regular B works both days.
     Wednesday only cottage 11 (premium) departs, both are available, no other departures that week → R11 picks her
     (0 shifts vs 2), so she cleans 11. Her flag does not hand the shift to B.
+  - Monday: stable 4 (next arrival Wednesday), 6 (no next arrival known) and 8 (next arrival Thursday) depart; the
+    `stableFirst` housekeeper and two others work → she gets 6 (no deadline counts as latest).
+  - Premium fairness: A and B, no flags. Monday 3 (stable) and 11 (premium) depart, Tuesday 4 and 12, all with
+    arrivals that day → Monday A gets 11 (both 0 premium, lowest id), B gets 3; Tuesday B gets 12 (0 premium vs
+    A's 1), A gets 4.
+  - Several `stableFirst`: S1 (2 shifts so far) and S2 (1 shift) work; one stable and one premium task today → S2
+    (fewest shifts) takes the premium task, S1 gets the stable one.
+  - Before a reserve: Monday, S (`stableFirst`) is the only regular, reserve R is available. Cottage 11 has an early
+    check-in today at 15:30 (10:00 + 300 = 15:00 ≤ 15:30), cottage 3 an arrival today at 16:00; neither can wait.
+    By R5d, 11 (15:30) takes S's regular place and 3 needs the reserve → they swap: S cleans 3, R cleans 11, and R's
+    call still needs confirming.
 - **R8. Manual crew of 2.** The manager can manually raise any task's crew to 2 (e.g. very dirty) — this is a `manualOverride` and is preserved when the schedule is regenerated.
 
 ### Capacity
@@ -360,8 +403,9 @@ TimeEntry
     shortfall.
   - Weekends follow the same rule (R5f): a reserve is called only for a task that cannot wait.
   - With two or more reserves available, the one with the **fewest shifts this week** is called; ties by lowest id.
-  - Reserve availability is an input per day like any housekeeper's. A task assigned to a reserve is marked
-    `needsReserveCall` so the manager confirms it.
+  - Reserve availability is an input per day like any housekeeper's. An assignment is marked `needsReserveCall` ⇔
+    its crew includes a reserve — a call from day planning or the R9a fallback — so the manager confirms it.
+  - A weekend alternative (R5h) is a suggestion, not a reserve call.
   Examples:
   - Monday: 5 regulars work, 6 departures; cottage 2 has no arrival today, the other five have arrivals today → five
     cottages get regulars, cottage 2 is deferred to Tuesday. The reserve is not called.
@@ -453,6 +497,17 @@ For any randomly generated week of bookings and availability, the generated sche
     regular differ by at most 1 shift (R11).
 23. If the planning week starts on Monday, `WEEKLY_LIMIT` happens only on Sunday and only for a task that cannot
     wait (R9a, R5f).
+24. On any day, a `stableFirst` housekeeper cleans a premium task only if every stable task staffed by regulars that
+    day is cleaned by a `stableFirst` housekeeper; no regular without `stableFirst` cleans a stable task that comes
+    before, in stable order, a stable task cleaned by a `stableFirst` housekeeper that day; and no reserve cleans a
+    stable task that cannot wait while a `stableFirst` regular cleans a premium task that cannot wait (R7a).
+25. A weekend alternative appears only on a deferred task planned on Saturday or Sunday. Its date is a weekday from
+    `departureDate` up to `plannedDate − 1` within the week; its reserves were available and not assigned that day;
+    no earlier such weekday had a free reserve. The alternatives fit together: a reserve is offered at most once per
+    weekday, and counting every offered alternative as accepted, no reserve has more than 6 shifts (R9, R9a hold if
+    the manager accepts all of them). The schedule is the same with or without alternatives (R5h).
+26. `needsReserveCall` ⇔ the crew includes a reserve; a day's `reserveCalls` = that day's assignments with
+    `needsReserveCall` (R10b).
 
 ---
 
@@ -479,6 +534,11 @@ Resolved:
 - [x] **Weekend staffing:** same rule as weekdays within the week; no multi-week history in v1 → R12.
 - [x] **Weekly rest:** at most 6 shifts per week; otherwise reserve or `WEEKLY_LIMIT` shortfall → R9a.
 - [x] **Availability as input:** required for every active housekeeper and day; headcount derived from it → R10.
+
+- [x] **Which cottage:** exact stable order, `stableFirst` before other regulars and before a reserve's stable task,
+      premium fairness among the other regulars (manager, 2026-11-27) → R7a.
+- [x] **Short-staffed Friday vs. weekend:** the plan may still defer onto the weekend; a free reserve on a weekday is
+      offered as an alternative for the manager to choose → R5h.
 
 Open: none for v1.
 
@@ -538,3 +598,5 @@ Backlog:
 - [ ] Manager UI allows only planning weeks starting on Monday (R9a, R11: shifts are counted per planning week).
 - [ ] Contract hours in the even distribution (R11) — v1 counts every shift equally.
 - [ ] Weekend fairness across weeks (R12) — v1 has no multi-week history.
+- [ ] Manager UI: choose between the weekend plan and its alternative (R5h); accepting it moves the task to the
+      weekday and calls the reserve.
