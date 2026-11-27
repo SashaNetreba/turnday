@@ -7,9 +7,11 @@ import {
   availableAllWeek,
   housekeeper,
   mondayTeamWeekArb,
+  reserveLimitWeekArb,
   seedConfig,
   seedCottages,
   stay,
+  teamWeekScenarioArb,
   turnover,
 } from './test-fixtures.js';
 
@@ -68,6 +70,53 @@ describe('R9a — weekly rest', () => {
     ).toEqual([[8, ['B']]]);
     expect(s.shortfall.map((x) => [x.task.cottageNumber, x.reason])).toEqual([[7, 'WEEKLY_LIMIT']]);
   });
+
+  it('R9a: the same week with a reserve R available → R cleans Sunday’s cottage 7 (it cannot wait); no shortfall', () => {
+    const s = schedule(
+      [...mondayToSaturday(), ...turnover(7, SUN)],
+      [housekeeper('A'), housekeeper('R', { reserve: true })],
+    );
+
+    expect(
+      s.assignments
+        .filter((a) => a.task.plannedDate === SUN)
+        .map((a) => [a.task.cottageNumber, a.housekeeperIds]),
+    ).toEqual([[7, ['R']]]);
+    expect(s.days.find((d) => d.date === SUN)).toMatchObject({
+      regular: 1,
+      reserve: 1,
+      reserveCalls: 1,
+    });
+    expect(s.shortfall).toEqual([]);
+  });
+
+  it('R9a: a reserve with 6 shifts is not called again — no regulars, R the only reserve, a turnover every day → Sunday’s cottage 7 is WEEKLY_LIMIT', () => {
+    const s = schedule(
+      [...mondayToSaturday(), ...turnover(7, SUN)],
+      [housekeeper('R', { reserve: true })],
+    );
+
+    expect(s.assignments.map((a) => [a.task.cottageNumber, a.housekeeperIds])).toEqual(
+      [1, 2, 3, 4, 5, 6].map((c) => [c, ['R']]),
+    );
+    expect(s.shortfall.map((x) => [x.task.cottageNumber, x.reason])).toEqual([[7, 'WEEKLY_LIMIT']]);
+    expect(s.days.find((d) => d.date === SUN)).toMatchObject({ reserve: 1, reserveCalls: 0 });
+  });
+});
+
+describe('R10b — which reserve is called', () => {
+  it('R10b: the reserve with the fewest shifts this week is called; on a tie the lowest id — R1, R2, R1 Monday to Wednesday', () => {
+    const s = schedule(
+      [1, 2, 3].flatMap((c, d) => turnover(c, days[d] ?? '')),
+      [housekeeper('R1', { reserve: true }), housekeeper('R2', { reserve: true })],
+    );
+
+    expect(s.assignments.map((a) => [a.task.plannedDate, a.housekeeperIds])).toEqual([
+      [days[0], ['R1']],
+      [days[1], ['R2']],
+      [days[2], ['R1']],
+    ]);
+  });
 });
 
 describe('R9a — properties', () => {
@@ -95,6 +144,61 @@ describe('R9a — properties', () => {
           );
         }
       }),
+    );
+  });
+
+  it('invariant 20 / R9a: nobody has more than 6 shifts; on a WEEKLY_LIMIT day every free available regular has 6, and so does every free available reserve if the task cannot wait', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(teamWeekScenarioArb, mondayTeamWeekArb, reserveLimitWeekArb),
+        ({ week: w, housekeepers, availability, bookings }) => {
+          const s = scheduleWeek({
+            tasks: deriveCleaningTasks(bookings, cottages, w, config),
+            housekeepers,
+            availability,
+            week: w,
+            config,
+          });
+          const shifts = (id: string): number =>
+            s.assignments.filter((a) => a.housekeeperIds.includes(id)).length;
+          for (const h of housekeepers) expect(shifts(h.id), h.id).toBeLessThanOrEqual(6);
+
+          const isAvailable = new Set(
+            availability.filter((a) => a.available).map((a) => `${a.housekeeperId} ${a.date}`),
+          );
+          for (const { task } of s.shortfall.filter((x) => x.reason === 'WEEKLY_LIMIT')) {
+            const day = task.plannedDate;
+            const working = new Set(
+              s.assignments
+                .filter((a) => a.task.plannedDate === day)
+                .flatMap((a) => a.housekeeperIds),
+            );
+            const free = housekeepers.filter(
+              (h) => h.active && isAvailable.has(`${h.id} ${day}`) && !working.has(h.id),
+            );
+            for (const h of free.filter((x) => !x.reserve))
+              expect(shifts(h.id), `${h.id} on ${day}`).toBe(6);
+            if (!fitsOn(task, addDays(day, 1))) {
+              for (const h of free.filter((x) => x.reserve))
+                expect(shifts(h.id), `${h.id} on ${day}`).toBe(6);
+            }
+          }
+
+          // Invariant 1 still holds after assignment: no day staffs more than its headcount, and reserveCalls counts
+          // exactly the tasks a reserve cleans that day.
+          const reserves = new Set(housekeepers.filter((h) => h.reserve).map((h) => h.id));
+          for (const d of s.days) {
+            const today = s.assignments.filter((a) => a.task.plannedDate === d.date);
+            expect(today.reduce((n, a) => n + a.task.requiredCrewSize, 0)).toBeLessThanOrEqual(
+              d.regular + d.reserve,
+            );
+            expect(
+              today.filter((a) => a.housekeeperIds.some((id) => reserves.has(id))).length,
+            ).toBe(d.reserveCalls);
+            expect(d.reserveCalls).toBeLessThanOrEqual(d.reserve);
+          }
+        },
+      ),
     );
   });
 });

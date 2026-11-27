@@ -731,3 +731,28 @@ export const mondayTeamWeekArb: fc.Arbitrary<TeamWeekScenario> = fc.oneof(
     }),
   teamArb({ start: propertyBase }, { min: 1, max: 8 }, { min: 0, max: 2 }, 25),
 );
+
+/**
+ * Monday–Sunday weeks where reserves carry the week (R9a, R10b): 0–1 regulars, 1–2 reserves with R0 available every
+ * day, 1–3 turnovers every day — so reserves are called day after day and reach the 6-shift limit.
+ */
+export const reserveLimitWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
+  .tuple(fc.integer({ min: 0, max: 1 }), fc.integer({ min: 1, max: 2 }), dailyCountsArb(1, 3))
+  .chain(([nRegular, nReserve, counts]) => {
+    const week: PlanningWeek = { start: propertyBase };
+    const housekeepers = [
+      ...Array.from({ length: nRegular }, (_, i) => housekeeper(`H${String(i)}`)),
+      ...Array.from({ length: nReserve }, (_, i) =>
+        housekeeper(`R${String(i)}`, { reserve: true }),
+      ),
+    ];
+    return teamAvailabilityArb(
+      week,
+      housekeepers.map((h) => h.id),
+    ).map((random) => ({
+      week,
+      housekeepers,
+      availability: random.map((a) => (a.housekeeperId === 'R0' ? { ...a, available: true } : a)),
+      bookings: dailyTurnovers(week, counts),
+    }));
+  });

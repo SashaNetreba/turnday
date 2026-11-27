@@ -15,9 +15,11 @@ import {
   dailyTurnovers,
   fullAvailabilityTeamWeekArb,
   housekeeper,
+  reserveLimitWeekArb,
   seedConfig,
   seedCottages,
   smallTeamWeekArb,
+  teamWeekScenarioArb,
   turnover,
   type TeamWeekScenario,
 } from './test-fixtures.js';
@@ -218,6 +220,27 @@ describe('R11 / R12 — properties', () => {
           spread: spreadOf(counts, placeDays),
         }).toEqual(expected);
       }),
+    );
+  });
+
+  it('invariant 7 / R11 / R10b: shuffling the order of the housekeepers in the input does not change the schedule', () => {
+    fc.assert(
+      fc.property(
+        fc.oneof(teamWeekScenarioArb, reserveLimitWeekArb).chain((scenario) =>
+          fc.tuple(
+            fc.constant(scenario),
+            fc.shuffledSubarray(scenario.housekeepers, {
+              minLength: scenario.housekeepers.length,
+              maxLength: scenario.housekeepers.length,
+            }),
+          ),
+        ),
+        ([scenario, shuffled]) => {
+          expect(scheduleOf({ ...scenario, housekeepers: shuffled }).s).toEqual(
+            scheduleOf(scenario).s,
+          );
+        },
+      ),
     );
   });
 
