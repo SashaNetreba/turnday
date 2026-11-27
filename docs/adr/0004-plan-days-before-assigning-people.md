@@ -51,3 +51,15 @@ The assignment step is specified (domain-model v0.5). The decision stands: both 
   nobody can have 6 shifts before Sunday (6 shifts need 6 working days). On Sunday only tasks that cannot wait until
   Monday are planned (R5f); everything else carries over (R5g). It could only happen in a week that does not start on
   Monday, which the manager UI will not allow (domain-model §8 backlog).
+
+## Follow-up (2026-11-27)
+The assignment step is implemented (R9–R12, then R7a and R5h, domain-model v0.7). The decision stands: `scheduleWeek`
+runs day planning unchanged and then assigns people.
+- The R9a fallback happens in the assignment step: a regular place left unfilled by the 6-shift limit goes to a
+  reserve if the task cannot wait, otherwise the task moves from `tasks` to the shortfall with reason `WEEKLY_LIMIT`.
+- R7a only decides which cottage each working housekeeper cleans, after R11 has decided who works. It never changes
+  what day planning staffed (invariant 18).
+- The weekend alternative (R5h) is computed after day planning and the assignment, and only marks assignments as a
+  suggestion; day planning still does not depend on who is free. Invariant 25's "the schedule is the same with or
+  without alternatives" is not asserted by a test yet. The direct check is planned together with the manager's
+  "accept / reject alternative" feature (domain-model §8 backlog).

@@ -1,8 +1,9 @@
 # Domain Model — Housekeeping Scheduler
 
-> Status: **v0.7 — ready for implementation** · Owner: Oleksandra Netreba
+> Status: **v0.7 — implemented** (R1–R12 except R8) · Owner: Oleksandra Netreba
 > This document describes the business domain independently of any framework, database or UI.
-> Everything here lives in `packages/domain` and is covered by unit and property-based tests.
+> The rules live in `packages/domain`. Which rules and invariants have tests, and which do not yet
+> (R8, R13–R15 are not built), is listed in the generated [traceability matrix](traceability.md).
 
 ---
 
@@ -135,13 +136,13 @@ WeekSchedule                  # output of scheduleWeek (ADR 0004, step 2: R9, R9
 Assignment
   task: CleaningTask          # the staffed task, as in shortfall entries
   housekeeperIds: [id]        # crew
-  manualOverride: boolean     # e.g. manager added a 2nd person because it's very dirty
+  manualOverride: boolean     # R8, not built yet: e.g. manager added a 2nd person because it's very dirty
   needsReserveCall: boolean   # R10b: ⇔ the crew includes a reserve (day-planning call or R9a fallback);
                               # the manager confirms the call
   weekendAlternative?:        # R5h: only on a task deferred onto Saturday or Sunday
     { date, housekeeperIds }  # the earliest weekday a reserve was free, and that reserve (requiredCrewSize ids)
 
-TimeEntry
+TimeEntry                     # R13–R15, not built yet
   assignmentId
   housekeeperId
   startedAt: datetime (UTC)
@@ -308,7 +309,8 @@ TimeEntry
   regular places that day, then by a swap with a reserve (below). `stableFirst` never makes a housekeeper skip a
   shift, and never changes which tasks are staffed, deferred or in shortfall (invariant 18).
   - **Stable order:** latest deadline first — a task with no deadline counts as latest, so a task with no arrival today
-    always comes before one with an arrival today; on a tie, lowest cottage number first.
+    always comes before one with an arrival today; on a tie, lowest cottage number first, then earliest departure
+    date (as in R5d).
   - **`stableFirst` housekeepers come first.** A working housekeeper with `stableFirst` **always** gets a stable task —
     the first one left in stable order — unless more `stableFirst` housekeepers work than there are stable tasks. Then
     the ones with the **fewest shifts this week** (before today; ties by lowest id) go without and take premium
@@ -374,9 +376,9 @@ TimeEntry
   - Missing availability for an **active** housekeeper on any day of the week makes the input **invalid**: it is
     rejected with the list of housekeepers and dates affected. A missing entry is never treated as available or
     unavailable. Inactive housekeepers are not counted and need no availability.
-  - Two entries for the same housekeeper and date, an entry for an unknown housekeeper id, or two housekeepers with
-    the same id make the input **invalid** too; the error lists them. Entries for dates outside the planning week are
-    ignored.
+  - Two entries for the same housekeeper and date, an entry for an unknown housekeeper id, two housekeepers with
+    the same id, or a housekeeper with both `stableFirst` and `reserve` make the input **invalid** too; the error
+    lists them. Entries for dates outside the planning week are ignored.
   - The headcount (R10a) is derived from it: `regular` / `reserve` = active housekeepers without / with `reserve`
     available that day.
   Examples (week from Mon 30 Nov 2026; A and B regular, R reserve):
@@ -519,7 +521,8 @@ Resolved:
 - [x] **Stayovers:** not cleaned → R2.
 - [x] **Check-in time:** 16:00 → R5.
 - [x] **Capacity:** one cottage per person per day → R9 (derived).
-- [x] **Availability:** entered by the manager → §3, §5.
+- [x] **Availability:** an input per housekeeper and day; who enters it is not a domain concern → §3, R10
+      (housekeepers entering their own: §8 backlog).
 
 - [x] **No same-day arrival:** clean can be deferred when short-staffed, or over the weekend → R5c–R5f.
 - [x] **Late checkout / early check-in:** set by the manager in the app → R5a, R5b.

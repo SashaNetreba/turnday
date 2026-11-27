@@ -1,14 +1,14 @@
 # Test strategy
 
 How Turnday is tested, what each level proves, and what is still planned.
-Business rules (R1, R5a, …) and invariants (1…14) are defined in [domain-model.md](domain-model.md).
+Business rules (R1, R5a, …) and invariants (§6, numbered) are defined in [domain-model.md](domain-model.md).
 Which tests cover which rule is listed in the generated [traceability matrix](traceability.md).
 
 ## Test levels
 
 | Level | What it proves | Tool | Status | Command |
 |---|---|---|---|---|
-| Static | Types are sound (`strict`, no `any`), lint rules hold, the domain never reads the system clock | TypeScript, ESLint (`strictTypeChecked`, `no-restricted-syntax` for `Date.now()` / `new Date()`) | exists | `pnpm lint`, `pnpm typecheck` |
+| Static | Types are sound (`strict`, no `any`), lint rules hold, the domain never reads the system clock | TypeScript, ESLint (`strictTypeChecked`, `no-restricted-syntax` for `Date.now()` and argument-less `new Date()`) | exists | `pnpm lint`, `pnpm typecheck` |
 | Unit — example | One rule, one concrete scenario with readable dates and times (e.g. "Fri 13 Nov, cottage 5") | Vitest | exists | `pnpm test` |
 | Property-based | An invariant from §6 holds for any generated week of bookings and overrides | Vitest + fast-check | exists | `pnpm test` |
 | Architecture | `packages/domain` stays pure: no apps, Prisma, NestJS, React or Node built-ins; no cycles | dependency-cruiser | exists | `pnpm arch` |
@@ -34,6 +34,18 @@ CI then runs `pnpm test:matrix` and fails if the committed `docs/traceability.md
   the failure is replayed with them.
 - **Vacuous-pass check by mutation.** A green test only counts if it can go red: after green, the code under test is
   deliberately broken and the test must fail. Today this is done by hand; Stryker will automate it (planned).
+  - **One mutant per rule criterion, in the real code.** Each criterion of a rule (each condition, tie-break or
+    exception in its text) is proven only by a mutant that removes that criterion from the domain code and turns a
+    test red. A red run against a stub or a not-yet-written function does not count.
+    - A mutant counts only if the test fails on the rule it names. Read the failure message: if it fails through an
+      unrelated check (e.g. a shift counter instead of "the schedule is unchanged"), the criterion is not proven —
+      add a direct assertion or say so in Known gaps.
+  - **Properties must fail 10/10.** A property test is run alone 10 times against its mutant and must fail every time.
+    If it does not, the generator gets a focused branch for the boundary (e.g. the last day of the week, a check-in at
+    14:29 / 14:30 / 14:31) until it does.
+  - **Check which function a property runs.** A property only covers the code its arguments reach: a property on
+    `planWeek` does not see what `scheduleWeek` does afterwards (assignment, R9a, R7a, R5h). Before citing a property as
+    coverage, check what it calls, and prove it with a mutant in that function.
 - **Success only by exit code.** A check passes when its exit code is 0 — never by reading or grepping its output.
 - **Changed expectations are justified from the rule.** If an existing test's expected value changes, the new value is
   derived from the rule (inputs, window, estimate) and shown in review, not copied from what the code returned.

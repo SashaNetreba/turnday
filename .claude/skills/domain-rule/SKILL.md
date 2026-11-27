@@ -22,15 +22,27 @@ The testing principles behind them are in `docs/test-strategy.md`; this skill do
    Test data matches real usage: planning weeks run Monday–Sunday. If a test can't be written on real data yet (it
    needs a rule that isn't built), change the commit order instead of using artificial input.
 
-   Run them and confirm they fail for the right reason. A test that already passes before the code exists must be
-   shown to bite: apply a mutation that breaks the rule, show the failure, revert.
+   Run them and confirm they fail for the right reason. A red run against a stub or a missing function does not
+   prove a criterion; step 5 does.
 4. **Implement** the smallest change in `packages/domain` that makes them pass. No I/O, no framework imports, no `Date.now()`.
-5. **Check each property test bites.** Break the rule in the code and run the property alone 10 times, e.g.
-   `for i in $(seq 10); do pnpm --filter @turnday/domain exec vitest run <file> -t "invariant <n>"; done`.
-   It must fail in 10/10 runs. If not, add a focused generator branch for the boundary (e.g. the last day of the week;
-   check-in at 14:29 / 14:30 / 14:31) and re-check. Revert the mutation.
+5. **One mutant per rule criterion, in the real code.** For each criterion of the rule (each condition, tie-break or
+   exception in its text), break exactly that criterion in the domain code, show which test goes red, revert. A
+   criterion no mutant turns red is not proven, whatever the matrix says.
+   - **A mutant counts only if the test fails on the rule it names.** Read the failure message: if it fails through
+     an unrelated check (e.g. a shift counter instead of "the schedule is unchanged"), the criterion is not proven —
+     add a direct assertion or say so in Known gaps.
+   - **Check which function the test runs.** A property on `planWeek` does not see `scheduleWeek` (assignment, R9a,
+     R7a, R5h). Put the mutant in the function the test actually calls; if the rule lives in another function, the
+     test does not cover it.
+   - **Properties: 10/10.** Run the property alone 10 times against its mutant, e.g.
+     `for i in $(seq 10); do pnpm --filter @turnday/domain exec vitest run <file> -t "invariant <n>"; done`.
+     It must fail in 10/10 runs. If not, add a focused generator branch for the boundary (e.g. the last day of the
+     week; check-in at 14:29 / 14:30 / 14:31) and re-check.
 6. **Check the rule text against the tests.** If a part of the rule is not exercised by any test, say so explicitly.
    That test belongs in the commit of the rule it belongs to; don't let the matrix show the rule as covered while a part
    of it is untested.
 7. Run the `verify` skill.
-8. Suggest a Conventional Commit message: `feat(domain): R<id> <summary>`.
+8. Run `pnpm test:matrix` and include the regenerated `docs/traceability.md` in the commit — CI and the pre-push hook
+   fail if it is stale.
+9. Follow the commit gate in `CLAUDE.md` § Before every commit (red and green runs, mutant outputs, `git status`,
+   named files, explicit yes) and suggest a Conventional Commit message: `feat(domain): R<id> <summary>`.
