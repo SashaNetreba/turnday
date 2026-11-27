@@ -102,6 +102,41 @@ describe('R9a — weekly rest', () => {
     expect(s.shortfall.map((x) => [x.task.cottageNumber, x.reason])).toEqual([[7, 'WEEKLY_LIMIT']]);
     expect(s.days.find((d) => d.date === SUN)).toMatchObject({ reserve: 1, reserveCalls: 0 });
   });
+
+  it('R9a: in a week from Tuesday, a task that can wait and loses its regular place on the last day (Monday) is WEEKLY_LIMIT — the free reserve is not called', () => {
+    // Week Tue 17 – Mon 23 Nov 2026. A, the only regular, cleans 1–6 Tuesday to Sunday (all turnovers) → 6 shifts.
+    // Monday: cottage 7 is next let Tuesday 24 at 16:00 → it can wait (10:00 + 270 = 14:30 ≤ 16:00), so day
+    // planning gives it A's place, R11 leaves that place unfilled, and R stays home (ADR 0004 trade-off).
+    const tuesdayWeek = { start: localDate('2026-11-17') };
+    const tueToSun = daysOf(tuesdayWeek).slice(0, 6).map(String);
+    const monday = addDays(tuesdayWeek.start, 6);
+    const team = [housekeeper('A'), housekeeper('R', { reserve: true })];
+    const s = scheduleWeek({
+      tasks: deriveCleaningTasks(
+        [
+          ...[1, 2, 3, 4, 5, 6].flatMap((c, d) => turnover(c, tueToSun[d] ?? '')),
+          ...stay(7, monday, '2026-11-24'),
+        ],
+        cottages,
+        tuesdayWeek,
+        config,
+      ),
+      housekeepers: team,
+      availability: availableAllWeek(tuesdayWeek, ['A', 'R']),
+      week: tuesdayWeek,
+      config,
+    });
+
+    expect(s.assignments.map((a) => [a.task.cottageNumber, a.housekeeperIds])).toEqual(
+      [1, 2, 3, 4, 5, 6].map((c) => [c, ['A']]),
+    );
+    expect(s.shortfall.map((x) => [x.task.cottageNumber, x.reason])).toEqual([[7, 'WEEKLY_LIMIT']]);
+    expect(s.days.find((d) => d.date === monday)).toMatchObject({
+      regular: 1,
+      reserve: 1,
+      reserveCalls: 0,
+    });
+  });
 });
 
 describe('R10b — which reserve is called', () => {

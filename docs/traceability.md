@@ -36,7 +36,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R7a Stable first | 0 | **NOT COVERED** |
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
 | R9 One clean per housekeeper per day | 2 | covered |
-| R9a Weekly rest | 6 | covered |
+| R9a Weekly rest | 7 | covered |
 | R10 Unavailable days | 13 | covered |
 | R10a Shortfall | 11 | covered |
 | R10b Reserve | 9 | covered |
@@ -217,6 +217,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 23 / R9a: in a week starting on Monday, WEEKLY_LIMIT happens only on Sunday and only for a task that cannot wait
 - packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: A is the only regular; cottages 1–6 turn over Monday to Saturday → A has 6 shifts; Sunday’s cottage 7 is a WEEKLY_LIMIT shortfall
 - packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: a reserve with 6 shifts is not called again — no regulars, R the only reserve, a turnover every day → Sunday’s cottage 7 is WEEKLY_LIMIT
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: in a week from Tuesday, a task that can wait and loses its regular place on the last day (Monday) is WEEKLY_LIMIT — the free reserve is not called
 - packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: on a day with fewer filled places than tasks, the task last in R5d order loses its place
 - packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: the same week with a reserve R available → R cleans Sunday’s cottage 7 (it cannot wait); no shortfall
 
