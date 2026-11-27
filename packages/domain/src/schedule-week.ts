@@ -1,3 +1,9 @@
+import {
+  assignCottages,
+  isStable,
+  swapWithReserves,
+  type WorkingRegular,
+} from './assign-cottages.js';
 import type { Availability } from './availability.js';
 import type { CleaningTask } from './cleaning-task.js';
 import { deriveHeadcount } from './derive-headcount.js';
@@ -69,11 +75,23 @@ export function scheduleWeek({
   const weeklyLimit: Shortfall[] = [];
   const reserveCalls = new Map<string, number>();
   const reserveShifts = new Map<string, number>();
+  const shifts = new Map<string, number>(); // regulars' shifts this week before today (R7a)
+  const premium = new Map<string, number>(); // regulars' premium tasks this week before today (R7a)
+  const byHousekeeperId = new Map(housekeepers.map((h) => [h.id, h]));
   const nextWeekStart = addDays(week.start, DAYS_IN_PLANNING_WEEK);
   staffing.forEach(({ date, byRegular, byReserve }, i) => {
-    // R7a placeholder: the day's working regulars in id order take its tasks in R5d order.
-    const regular = crews(byRegular, [...(working[i] ?? [])].sort());
-    assignments.push(...regular.assigned);
+    const next = date === lastDayOf(week) ? nextWeekStart : addDays(date, 1);
+    const cannotWait = (task: CleaningTask): boolean => !fitsOn(task, next, config);
+
+    // R7a: which cottage each regular R11 chose for today cleans.
+    const people = (working[i] ?? []).map((id): WorkingRegular => ({
+      id,
+      stableFirst: byHousekeeperId.get(id)?.stableFirst ?? false,
+      shifts: shifts.get(id) ?? 0,
+      premium: premium.get(id) ?? 0,
+    }));
+    const regular = assignCottages(byRegular, people);
+    const todayReserve: Assignment[] = [];
 
     // R10b: each reserve call goes to an available reserve under the limit (R9a) not yet called today — fewest
     // shifts this week, then lowest id. Day planning's own reserve calls first, then the R9a fallback.
@@ -95,19 +113,33 @@ export function scheduleWeek({
         calledToday.add(id);
         reserveShifts.set(id, (reserveShifts.get(id) ?? 0) + 1);
       }
-      assignments.push({ task, housekeeperIds: crew, needsReserveCall: true });
+      todayReserve.push({ task, housekeeperIds: crew, needsReserveCall: true });
       reserveCalls.set(date, (reserveCalls.get(date) ?? 0) + 1);
       return true;
     };
     // R9a: a regular place the 6-shift limit left unfilled — the tasks last in R5d order lose it. A task that cannot
     // wait goes to a reserve; otherwise, or with no reserve left, it is a WEEKLY_LIMIT shortfall.
-    const next = date === lastDayOf(week) ? nextWeekStart : addDays(date, 1);
-    const fallback = regular.unstaffed.filter((task) => !fitsOn(task, next, config));
+    const fallback = regular.unstaffed.filter(cannotWait);
     for (const task of [...byReserve, ...fallback]) {
       if (!callReserves(task)) weeklyLimit.push({ task, reason: 'WEEKLY_LIMIT' });
     }
-    for (const task of regular.unstaffed.filter((t) => fitsOn(t, next, config))) {
+    for (const task of regular.unstaffed.filter((t) => !cannotWait(t))) {
       weeklyLimit.push({ task, reason: 'WEEKLY_LIMIT' });
+    }
+
+    // R7a before a reserve: both tasks cannot wait, so the reserve still cleans only such a task (R10b).
+    const today = swapWithReserves(
+      regular.assigned.map((c): Assignment => ({ ...c, needsReserveCall: false })),
+      todayReserve,
+      people,
+      cannotWait,
+    );
+    assignments.push(...today.regular, ...today.reserve);
+    for (const a of today.regular) {
+      for (const id of a.housekeeperIds) {
+        shifts.set(id, (shifts.get(id) ?? 0) + 1);
+        if (!isStable(a.task)) premium.set(id, (premium.get(id) ?? 0) + 1);
+      }
     }
   });
 
@@ -123,32 +155,6 @@ export function scheduleWeek({
 
 /** Plain string order, as for booking refs (R1). */
 const byId = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
-
-/**
- * Gives each task, in R5d order, the next `requiredCrewSize` people from `people` — each person at most one task (R9).
- * Tasks left when the people run out are `unstaffed`.
- */
-function crews(
-  tasks: readonly CleaningTask[],
-  people: readonly string[],
-): { assigned: Assignment[]; unstaffed: CleaningTask[] } {
-  const assigned: Assignment[] = [];
-  const unstaffed: CleaningTask[] = [];
-  let next = 0;
-  for (const task of tasks) {
-    if (next + task.requiredCrewSize > people.length) {
-      unstaffed.push(task);
-      continue;
-    }
-    assigned.push({
-      task,
-      housekeeperIds: people.slice(next, next + task.requiredCrewSize),
-      needsReserveCall: false, // regulars only
-    });
-    next += task.requiredCrewSize;
-  }
-  return { assigned, unstaffed };
-}
 
 const sumCrew = (tasks: readonly CleaningTask[]): number =>
   tasks.reduce((sum, t) => sum + t.requiredCrewSize, 0);

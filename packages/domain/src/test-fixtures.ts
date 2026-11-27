@@ -92,6 +92,33 @@ export const lastStay = (cottage: number, out: string): Booking[] => [
   booking(`OUT/${String(cottage)}`, cottage, '2026-11-10', out),
 ];
 
+/**
+ * Like `stay`, with dates relative to `out` so it works in any week: the leaving guest arrived 3 days before `out`;
+ * the next guest arrives on `arrival` (check-in `checkin`, default 16:00) and stays 7 nights — or never comes when
+ * `arrival` is omitted (no deadline). Refs include the date, so a cottage may depart more than once in a test.
+ */
+export const departure = (
+  cottage: number,
+  out: string,
+  arrival?: string,
+  checkin?: string,
+): Booking[] => [
+  booking(`OUT/${String(cottage)}@${out}`, cottage, addDays(localDate(out), -3), out),
+  ...(arrival === undefined
+    ? []
+    : [
+        {
+          ...booking(
+            `IN/${String(cottage)}@${arrival}`,
+            cottage,
+            arrival,
+            addDays(localDate(arrival), 7),
+          ),
+          ...(checkin === undefined ? {} : { checkinTime: localTime(checkin) }),
+        },
+      ]),
+];
+
 /** Seed SchedulingConfig (docs/domain-model.md §3): the manager's planning values. */
 export function seedConfig(): SchedulingConfig {
   return {
@@ -609,6 +636,86 @@ export const teamWeekScenarioArb: fc.Arbitrary<TeamWeekScenario> = fc.oneof(
   weekArb.chain((w) => teamArb(w, { min: 1, max: 2 }, { min: 2, max: 2 }, 20)),
 );
 
+/**
+ * Monday–Sunday weeks for the R7a swap with a reserve (invariant 24): H0 (`stableFirst`), the only regular, and
+ * reserve R0 are available every day. On a random set of days a premium cottage turns over with an early check-in
+ * (15:00–15:59, so it fits from 10:00 and comes first in R5d) and a stable cottage turns over at 16:00 — so day
+ * planning gives H0's place to the premium task and calls R0 for the stable one; neither can wait.
+ */
+const reserveSwapWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
+  .tuple(
+    fc.array(fc.boolean(), { minLength: 7, maxLength: 7 }),
+    fc.array(fc.integer({ min: 0, max: 59 }), { minLength: 7, maxLength: 7 }),
+  )
+  .map(([pairDays, minutes]) => {
+    const week: PlanningWeek = { start: propertyBase };
+    const premium = [11, 12, 15];
+    return {
+      week,
+      housekeepers: [
+        housekeeper('H0', { stableFirst: true }),
+        housekeeper('R0', { reserve: true }),
+      ],
+      availability: availableAllWeek(week, ['H0', 'R0']),
+      bookings: daysOf(week).flatMap((day, d) =>
+        pairDays[d]
+          ? [
+              ...departure(
+                premium[d % 3] ?? 11,
+                day,
+                day,
+                `15:${String(minutes[d] ?? 0).padStart(2, '0')}`,
+              ),
+              ...departure(d + 1, day, day),
+            ]
+          : [],
+      ),
+    };
+  });
+
+/**
+ * Monday–Sunday weeks for the R7a stable order (invariant 24): H0 (`stableFirst`) and H1 (no flag) are available every
+ * day; each day two stable cottages depart with the next guests arriving 0–3 days later — so both regulars clean a
+ * stable task and the deadlines usually differ.
+ */
+const stableOrderWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
+  .array(fc.tuple(fc.integer({ min: 0, max: 3 }), fc.integer({ min: 0, max: 3 })), {
+    minLength: 7,
+    maxLength: 7,
+  })
+  .map((gaps) => {
+    const week: PlanningWeek = { start: propertyBase };
+    return {
+      week,
+      housekeepers: [housekeeper('H0', { stableFirst: true }), housekeeper('H1')],
+      availability: availableAllWeek(week, ['H0', 'H1']),
+      bookings: daysOf(week).flatMap((day, d) => {
+        const [a, b] = gaps[d] ?? [0, 0];
+        return [
+          ...departure(((2 * d) % 10) + 1, day, addDays(day, a)),
+          ...departure(((2 * d) % 10) + 2, day, addDays(day, b)),
+        ];
+      }),
+    };
+  });
+
+/**
+ * Team weeks for R7a (invariants 18, 24): `teamWeekScenarioArb` with a random `stableFirst` flag on each regular
+ * (never on a reserve, R10), plus the reserve-swap and stable-order shapes.
+ */
+export const stableFirstTeamWeekArb: fc.Arbitrary<TeamWeekScenario> = fc.oneof(
+  fc
+    .tuple(teamWeekScenarioArb, fc.array(fc.boolean(), { minLength: 8, maxLength: 8 }))
+    .map(([scenario, flags]) => ({
+      ...scenario,
+      housekeepers: scenario.housekeepers.map((h, i) =>
+        h.reserve ? h : { ...h, stableFirst: flags[i] ?? false },
+      ),
+    })),
+  reserveSwapWeekArb,
+  stableOrderWeekArb,
+);
+
 /** The schedulable seed cottages in number order (1–10 stable, 11, 12, 15 premium). */
 const schedulableCottages = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15];
 
@@ -751,6 +858,35 @@ export const reserveFallbackWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
         { housekeeperId: 'R0', date, available: date === sunday },
       ]),
       bookings: dailyTurnovers(week, [...monToSat, 1]),
+    };
+  });
+
+/**
+ * Weeks from Tuesday where a task that can wait loses its regular place on the last day (R9a example, ADR 0004
+ * trade-off): H0, the only regular, is available every day and cleans one turnover a day Tuesday to Sunday (6
+ * shifts); on Monday a random cottage departs with its next guest 1–3 days later, or none — it can wait, day planning
+ * gives it H0's place, R11 leaves that place unfilled. R0 is available only on Monday and must not be called for it
+ * (invariant 17).
+ */
+export const deferrableFallbackWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
+  .tuple(
+    fc.integer({ min: 2, max: 12 }),
+    fc.oneof(fc.constant(undefined), fc.integer({ min: 1, max: 3 })),
+  )
+  .map(([cottage, gap]) => {
+    const week: PlanningWeek = { start: addDays(propertyBase, 1) }; // Tue 17 – Mon 23 Nov 2026
+    const lastDay = addDays(week.start, 6);
+    return {
+      week,
+      housekeepers: [housekeeper('H0'), housekeeper('R0', { reserve: true })],
+      availability: daysOf(week).flatMap((date) => [
+        { housekeeperId: 'H0', date, available: true },
+        { housekeeperId: 'R0', date, available: date === lastDay },
+      ]),
+      bookings: [
+        ...dailyTurnovers(week, [1, 1, 1, 1, 1, 1, 0]),
+        ...departure(cottage, lastDay, gap === undefined ? undefined : addDays(lastDay, gap)),
+      ],
     };
   });
 
