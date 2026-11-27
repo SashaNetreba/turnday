@@ -1,6 +1,6 @@
 # Domain Model — Housekeeping Scheduler
 
-> Status: **v0.5 — ready for implementation** · Owner: Oleksandra Netreba
+> Status: **v0.6 — ready for implementation** · Owner: Oleksandra Netreba
 > This document describes the business domain independently of any framework, database or UI.
 > Everything here lives in `packages/domain` and is covered by unit and property-based tests.
 
@@ -46,6 +46,7 @@ Goals:
 | **Workday start** | Time housekeepers start work; the start of a deferred task's window (R5c). |
 | **Deferral** | Cleaning a task on a later day than its departure (R5c). |
 | **Shortfall** | A task that cannot be staffed before its deadline — reported, never dropped (R10a). |
+| **Week schedule** | `WeekSchedule`: the week plan (tasks per day, shortfall, carry-over) plus who cleans each task (ADR 0004, step 2: R9, R9a, R11, R12). |
 | **Carry-over** | A task still waiting after the planning week; it moves into the next week's planning (R5g). |
 
 ---
@@ -115,7 +116,7 @@ Headcount                     # R10a: input to day planning, one entry for every
   regular: int >= 0           # regular housekeepers available that day
   reserve: int >= 0           # reserve housekeepers available that day (R10b)
 
-WeekPlan                      # output of planning one week (R5c–R5g, R10a, R10b)
+WeekPlan                      # output of day planning (ADR 0004, step 1: R5c–R5g, R10a, R10b)
   tasks: [CleaningTask]       # staffed, plannedDate within the week
   days: [{ date, needed, regular, reserve, reserveCalls }]
                               # needed = Σ requiredCrewSize of that day's candidates;
@@ -126,8 +127,11 @@ WeekPlan                      # output of planning one week (R5c–R5g, R10a, R1
                               # WEEKLY_LIMIT (R9a): found when people are assigned — a 7th shift would staff it
   carriedOver: [CleaningTask] # still waiting after the week's last day → input to the next week (R5g)
 
+WeekSchedule                  # output of scheduleWeek (ADR 0004, step 2: R9, R9a, R11, R12) = WeekPlan +
+  assignments: [Assignment]   # who cleans each staffed task; WEEKLY_LIMIT tasks (R9a) leave `tasks` for `shortfall`
+
 Assignment
-  taskId
+  task: CleaningTask          # the staffed task, as in shortfall entries
   housekeeperIds: [id]        # crew
   manualOverride: boolean     # e.g. manager added a 2nd person because it's very dirty
   needsReserveCall: boolean   # R10b: the crew includes a reserve; the manager confirms the call
@@ -309,6 +313,9 @@ TimeEntry
     called that day (R10b), if the task **cannot wait**. Only if there is none, the task goes to the shortfall with
     reason `WEEKLY_LIMIT` — distinct from `NO_STAFF`, so the manager sees that a 7th shift would solve it. When a day
     has fewer places than tasks, the tasks last in R5d order lose the places.
+  - The limit applies to reserve calls from day planning (R10b) too: the reserve is chosen among the available reserves
+    under the limit; if every one of them already has 6 shifts, the task goes to the shortfall with reason
+    `WEEKLY_LIMIT`.
   - Why a task that could wait never reaches `WEEKLY_LIMIT` in practice: when the planning week starts on Monday,
     nobody can have 6 shifts before Sunday (6 shifts need 6 working days). On Sunday only tasks that cannot wait until
     Monday are planned (R5f); everything else carries over (R5g). So `WEEKLY_LIMIT` can only happen on Sunday, for a
@@ -366,8 +373,10 @@ TimeEntry
   are excluded (R10b). Contract hours are ignored in v1 — every shift counts the same. Each day's number of regular
   places is already fixed by day planning (ADR 0004), so this is a balanced-assignment problem over the whole week:
   1. **Bounds.** First maximise the number of staffed regular places, then find the smallest **spread** `U − L`:
-     bounds `L ≤ U` such that every regular works at least `min(L, their available days)` and at most `min(U, 6)`
-     shifts (R9a), and no day gets more than its count of regular places.
+     bounds `L ≤ U` such that every regular works at least `min(L, their place days)` and at most `min(U, 6)`
+     shifts (R9a), and no day gets more than its count of regular places. A regular's **place days** are the days
+     they are available that have at least one regular place — a day with no work never lowers `L` for the team.
+     If several bounds have the same smallest spread, the one with the **largest `L`** is used.
   2. **Build.** Fill the week day by day. On each day candidates are tried in priority order: **fewest shifts so
      far** this week, then **longest since their last shift** (no shift yet this week counts as longest), then
      **lowest id**. A candidate is accepted only if the rest of the week can still reach the staffed count and the
