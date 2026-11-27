@@ -15,6 +15,8 @@ concurrency:
 jobs:
   analyze:
     runs-on: ubuntu-latest
+    # Longer than the CI jobs: CodeQL analysis runs slower than verify.
+    timeout-minutes: 30
     permissions:
       contents: read
       security-events: write

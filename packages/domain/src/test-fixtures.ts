@@ -492,3 +492,267 @@ export const availabilityScenarioArb: fc.Arbitrary<{
       }));
     }),
 );
+
+// ---- Team weeks: housekeepers + availability + bookings, for the assignment step (R9, R9a, R10, R11, R12) ----
+
+/** A generated team week: the input of scheduleWeek, apart from cottages and config. */
+export interface TeamWeekScenario {
+  readonly week: PlanningWeek;
+  readonly housekeepers: Housekeeper[];
+  readonly availability: Availability[];
+  readonly bookings: Booking[];
+}
+
+/** One departure in a team week: the next guest arrives the same day, `gap` days later, or never. */
+interface TeamDeparture {
+  readonly cottage: number;
+  readonly outOffset: number;
+  readonly next: 'SAME_DAY' | 'NONE' | number;
+}
+
+const teamCottageArb = fc.constantFrom(1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15);
+
+/** Departures in `week`; same-day arrivals weighted up, so weekend tasks cannot wait and reserves get called. */
+const teamDeparturesArb = (maxLength: number): fc.Arbitrary<TeamDeparture[]> =>
+  fc.array(
+    fc.record({
+      cottage: teamCottageArb,
+      outOffset: fc.integer({ min: 0, max: 6 }),
+      next: fc.oneof(
+        { weight: 3, arbitrary: fc.constant<'SAME_DAY'>('SAME_DAY') },
+        { weight: 1, arbitrary: fc.constant<'NONE'>('NONE') },
+        { weight: 1, arbitrary: fc.integer({ min: 1, max: 3 }) },
+      ),
+    }),
+    { maxLength },
+  );
+
+/**
+ * Availability for every housekeeper (all active) on every day: `true` with weight 3 against 1, so most days have
+ * people and some do not.
+ */
+const teamAvailabilityArb = (
+  week: PlanningWeek,
+  ids: readonly string[],
+): fc.Arbitrary<Availability[]> =>
+  fc
+    .array(
+      fc.array(
+        fc.oneof(
+          { weight: 3, arbitrary: fc.constant(true) },
+          { weight: 1, arbitrary: fc.constant(false) },
+        ),
+        {
+          minLength: 7,
+          maxLength: 7,
+        },
+      ),
+      { minLength: ids.length, maxLength: ids.length },
+    )
+    .map((perPerson) =>
+      ids.flatMap((housekeeperId, p) =>
+        daysOf(week).map((date, d) => ({
+          housekeeperId,
+          date,
+          available: perPerson[p]?.[d] ?? false,
+        })),
+      ),
+    );
+
+function teamBookings(week: PlanningWeek, departures: readonly TeamDeparture[]): Booking[] {
+  return departures.flatMap(({ cottage, outOffset, next }, i) => {
+    const out = addDays(week.start, outOffset);
+    const leaving = booking(`L${String(i)}`, cottage, addDays(out, -2), out);
+    if (next === 'NONE') return [leaving];
+    const arrival = next === 'SAME_DAY' ? out : addDays(out, next);
+    return [leaving, booking(`A${String(i)}`, cottage, arrival, addDays(arrival, 9))];
+  });
+}
+
+/** Regulars H0…H(n−1), reserves R0…R(m−1) — so every regular's id sorts before every reserve's. */
+const teamArb = (
+  week: PlanningWeek,
+  regulars: { min: number; max: number },
+  reserves: { min: number; max: number },
+  maxDepartures: number,
+): fc.Arbitrary<TeamWeekScenario> =>
+  fc.tuple(fc.integer(regulars), fc.integer(reserves)).chain(([nRegular, nReserve]) => {
+    const housekeepers = [
+      ...Array.from({ length: nRegular }, (_, i) => housekeeper(`H${String(i)}`)),
+      ...Array.from({ length: nReserve }, (_, i) =>
+        housekeeper(`R${String(i)}`, { reserve: true }),
+      ),
+    ];
+    return fc
+      .tuple(
+        teamAvailabilityArb(
+          week,
+          housekeepers.map((h) => h.id),
+        ),
+        teamDeparturesArb(maxDepartures),
+      )
+      .map(([availability, departures]) => ({
+        week,
+        housekeepers,
+        availability,
+        bookings: teamBookings(week, departures),
+      }));
+  });
+
+/**
+ * Team weeks for the assignment properties: (a) broad — 1–8 regulars, 0–2 reserves, up to 25 departures, any week
+ * start; (b) reserve-heavy — 1–2 regulars, 2 reserves, so days run out of regulars and reserves get called.
+ * Availability is random, so lower ids are often unavailable on a day with places.
+ */
+export const teamWeekScenarioArb: fc.Arbitrary<TeamWeekScenario> = fc.oneof(
+  weekArb.chain((w) => teamArb(w, { min: 1, max: 8 }, { min: 0, max: 2 }, 25)),
+  weekArb.chain((w) => teamArb(w, { min: 1, max: 2 }, { min: 2, max: 2 }, 20)),
+);
+
+/** The schedulable seed cottages in number order (1–10 stable, 11, 12, 15 premium). */
+const schedulableCottages = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15];
+
+/**
+ * Same-day turnovers by day of `week`: on day d, `counts[d]` cottages (1, 2, 3, … in that order) depart and the next
+ * guest arrives the same day, so none of them can wait. A cottage that turns over on several days gets one booking
+ * per stay, each arriving the day the previous one departs.
+ */
+export function dailyTurnovers(week: PlanningWeek, counts: readonly number[]): Booking[] {
+  const days = daysOf(week);
+  return schedulableCottages.flatMap((cottage, k) => {
+    const outs = days.filter((_, d) => (counts[d] ?? 0) > k);
+    if (outs.length === 0) return [];
+    const ref = (j: number): string => `T${String(cottage)}/${String(j)}`;
+    const first = outs[0] ?? week.start;
+    const last = outs[outs.length - 1] ?? week.start;
+    return [
+      booking(ref(0), cottage, addDays(first, -2), first),
+      ...outs.slice(1).map((out, j) => booking(ref(j + 1), cottage, outs[j] ?? out, out)),
+      booking(ref(outs.length), cottage, last, addDays(last, 9)),
+    ];
+  });
+}
+
+/** 7 counts, one per day of the week, each in [min, max]. */
+const dailyCountsArb = (min: number, max: number): fc.Arbitrary<number[]> =>
+  fc.array(fc.integer({ min, max }), { minLength: 7, maxLength: 7 });
+
+/**
+ * Small team weeks for the R11 brute-force oracle (invariant 21): 1–4 regulars, no reserves, random availability,
+ * 0–3 turnovers a day — plus the "A/B shape" (R11 example): on day k H0 and H1 are available with one place, on day
+ * k + 1 only H0, no other departures — where filling day k by fewest shifts alone gives 2 vs 0 instead of 1 vs 1.
+ */
+export const smallTeamWeekArb: fc.Arbitrary<TeamWeekScenario> = fc.oneof(
+  weekArb.chain((week) =>
+    fc.integer({ min: 1, max: 4 }).chain((n) => {
+      const housekeepers = Array.from({ length: n }, (_, i) => housekeeper(`H${String(i)}`));
+      return fc
+        .tuple(
+          teamAvailabilityArb(
+            week,
+            housekeepers.map((h) => h.id),
+          ),
+          dailyCountsArb(0, 3),
+        )
+        .map(([availability, counts]) => ({
+          week,
+          housekeepers,
+          availability,
+          bookings: dailyTurnovers(week, counts),
+        }));
+    }),
+  ),
+  weekArb.chain((week) =>
+    fc.tuple(fc.integer({ min: 2, max: 3 }), fc.integer({ min: 0, max: 5 })).chain(([n, k]) => {
+      const housekeepers = Array.from({ length: n }, (_, i) => housekeeper(`H${String(i)}`));
+      const days = daysOf(week);
+      return teamAvailabilityArb(
+        week,
+        housekeepers.map((h) => h.id),
+      ).map((random) => ({
+        week,
+        housekeepers,
+        availability: random.map((a) => {
+          if (a.date === days[k + 1]) return { ...a, available: a.housekeeperId === 'H0' };
+          if (a.date === days[k] && ['H0', 'H1'].includes(a.housekeeperId))
+            return { ...a, available: true };
+          return a;
+        }),
+        bookings: dailyTurnovers(
+          week,
+          days.map((_, d) => (d === k || d === k + 1 ? 1 : 0)),
+        ),
+      }));
+    }),
+  ),
+);
+
+/** Every regular (1–8, no reserves) available every day of the week; 0–8 turnovers a day (invariant 22). */
+export const fullAvailabilityTeamWeekArb: fc.Arbitrary<TeamWeekScenario> = weekArb.chain((week) =>
+  fc.tuple(fc.integer({ min: 1, max: 8 }), dailyCountsArb(0, 8)).map(([n, counts]) => {
+    const housekeepers = Array.from({ length: n }, (_, i) => housekeeper(`H${String(i)}`));
+    return {
+      week,
+      housekeepers,
+      availability: availableAllWeek(
+        week,
+        housekeepers.map((h) => h.id),
+      ),
+      bookings: dailyTurnovers(week, counts),
+    };
+  }),
+);
+
+/**
+ * Monday–Sunday weeks in high season (invariant 23): 1–3 regulars with H0 available every day, 0–1 reserves, 1–3
+ * turnovers every day — so the 6-shift limit binds and a regular place is left unfilled — plus broad team weeks
+ * starting on Monday.
+ */
+export const mondayTeamWeekArb: fc.Arbitrary<TeamWeekScenario> = fc.oneof(
+  fc
+    .tuple(fc.integer({ min: 1, max: 3 }), fc.integer({ min: 0, max: 1 }), dailyCountsArb(1, 3))
+    .chain(([nRegular, nReserve, counts]) => {
+      const week: PlanningWeek = { start: propertyBase };
+      const housekeepers = [
+        ...Array.from({ length: nRegular }, (_, i) => housekeeper(`H${String(i)}`)),
+        ...Array.from({ length: nReserve }, (_, i) =>
+          housekeeper(`R${String(i)}`, { reserve: true }),
+        ),
+      ];
+      return teamAvailabilityArb(
+        week,
+        housekeepers.map((h) => h.id),
+      ).map((random) => ({
+        week,
+        housekeepers,
+        availability: random.map((a) => (a.housekeeperId === 'H0' ? { ...a, available: true } : a)),
+        bookings: dailyTurnovers(week, counts),
+      }));
+    }),
+  teamArb({ start: propertyBase }, { min: 1, max: 8 }, { min: 0, max: 2 }, 25),
+);
+
+/**
+ * Monday–Sunday weeks where reserves carry the week (R9a, R10b): 0–1 regulars, 1–2 reserves with R0 available every
+ * day, 1–3 turnovers every day — so reserves are called day after day and reach the 6-shift limit.
+ */
+export const reserveLimitWeekArb: fc.Arbitrary<TeamWeekScenario> = fc
+  .tuple(fc.integer({ min: 0, max: 1 }), fc.integer({ min: 1, max: 2 }), dailyCountsArb(1, 3))
+  .chain(([nRegular, nReserve, counts]) => {
+    const week: PlanningWeek = { start: propertyBase };
+    const housekeepers = [
+      ...Array.from({ length: nRegular }, (_, i) => housekeeper(`H${String(i)}`)),
+      ...Array.from({ length: nReserve }, (_, i) =>
+        housekeeper(`R${String(i)}`, { reserve: true }),
+      ),
+    ];
+    return teamAvailabilityArb(
+      week,
+      housekeepers.map((h) => h.id),
+    ).map((random) => ({
+      week,
+      housekeepers,
+      availability: random.map((a) => (a.housekeeperId === 'R0' ? { ...a, available: true } : a)),
+      bookings: dailyTurnovers(week, counts),
+    }));
+  });

@@ -7,13 +7,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 ## Summary
 
-- Rules: 16 of 26 covered
-- Invariants: 13 of 23 covered
+- Rules: 20 of 26 covered
+- Invariants: 19 of 23 covered
 
 ## NOT COVERED
 
-- Rules: R7, R7a, R8, R9, R9a, R11, R12, R13, R14, R15
-- Invariants: 2, 3, 4, 6, 10, 18, 20, 21, 22, 23
+- Rules: R7, R7a, R8, R13, R14, R15
+- Invariants: 4, 6, 10, 18
 
 ## Rules
 
@@ -35,13 +35,13 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | R7 Any housekeeper, any cottage | 0 | **NOT COVERED** |
 | R7a Stable first | 0 | **NOT COVERED** |
 | R8 Manual crew of 2 | 0 | **NOT COVERED** |
-| R9 One clean per housekeeper per day | 0 | **NOT COVERED** |
-| R9a Weekly rest | 0 | **NOT COVERED** |
-| R10 Unavailable days | 12 | covered |
+| R9 One clean per housekeeper per day | 2 | covered |
+| R9a Weekly rest | 7 | covered |
+| R10 Unavailable days | 13 | covered |
 | R10a Shortfall | 11 | covered |
-| R10b Reserve | 7 | covered |
-| R11 Even distribution | 0 | **NOT COVERED** |
-| R12 Weekend rotation | 0 | **NOT COVERED** |
+| R10b Reserve | 9 | covered |
+| R11 Even distribution | 6 | covered |
+| R12 Weekend rotation | 1 | covered |
 | R13 Own assignment, today only | 0 | **NOT COVERED** |
 | R14 One open time entry | 0 | **NOT COVERED** |
 | R15 UTC storage | 0 | **NOT COVERED** |
@@ -51,12 +51,12 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | Invariant | Tests | Status |
 |---|---|---|
 | 1 | 2 | covered |
-| 2 | 0 | **NOT COVERED** |
-| 3 | 0 | **NOT COVERED** |
+| 2 | 1 | covered |
+| 3 | 1 | covered |
 | 4 | 0 | **NOT COVERED** |
 | 5 | 1 | covered |
 | 6 | 0 | **NOT COVERED** |
-| 7 | 1 | covered |
+| 7 | 2 | covered |
 | 8 | 1 | covered |
 | 9 | 1 | covered |
 | 10 | 0 | **NOT COVERED** |
@@ -69,10 +69,10 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 | 17 | 1 | covered |
 | 18 | 0 | **NOT COVERED** |
 | 19 | 1 | covered |
-| 20 | 0 | **NOT COVERED** |
-| 21 | 0 | **NOT COVERED** |
-| 22 | 0 | **NOT COVERED** |
-| 23 | 0 | **NOT COVERED** |
+| 20 | 1 | covered |
+| 21 | 1 | covered |
+| 22 | 1 | covered |
+| 23 | 1 | covered |
 
 ## Rules → tests
 
@@ -206,6 +206,21 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: an at-risk task still gets a crew of 1 (raising it is left to the later crew rules)
 - packages/domain/src/R6.crew-size.test.ts › R6 — default crew size › R6: every task gets a crew of 1, stable and premium alike
 
+### R9 One clean per housekeeper per day
+
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 3 / R9: no housekeeper has more than one task per day
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 — one clean per housekeeper per day › R9: three cottages out on Monday with arrivals today and three regulars → each regular cleans exactly one
+
+### R9a Weekly rest
+
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 20 / R9a: nobody has more than 6 shifts; on a WEEKLY_LIMIT day every free available regular has 6, and so does every free available reserve if the task cannot wait
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 23 / R9a: in a week starting on Monday, WEEKLY_LIMIT happens only on Sunday and only for a task that cannot wait
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: A is the only regular; cottages 1–6 turn over Monday to Saturday → A has 6 shifts; Sunday’s cottage 7 is a WEEKLY_LIMIT shortfall
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: a reserve with 6 shifts is not called again — no regulars, R the only reserve, a turnover every day → Sunday’s cottage 7 is WEEKLY_LIMIT
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: in a week from Tuesday, a task that can wait and loses its regular place on the last day (Monday) is WEEKLY_LIMIT — the free reserve is not called
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: on a day with fewer filled places than tasks, the task last in R5d order loses its place
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — weekly rest › R9a: the same week with a reserve R available → R cleans Sunday’s cottage 7 (it cannot wait); no shortfall
+
 ### R10 Unavailable days
 
 - packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: a housekeeper with both stableFirst and reserve makes the input invalid
@@ -220,6 +235,7 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: two housekeepers with the same id make the input invalid
 - packages/domain/src/R10.availability.test.ts › R10 — availability → headcount › R10: with every entry present and all three available on Monday, Monday's headcount is 2 regular and 1 reserve
 - packages/domain/src/R10.availability.test.ts › R10 — properties › R10: for valid input, regular and reserve on each day = active housekeepers without and with reserve available that day
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 2 / R10: no housekeeper is assigned on a day they are unavailable
 
 ### R10a Shortfall
 
@@ -244,6 +260,21 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: the reserve is called only up to the reserves available that day; the rest goes to shortfall
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: when every regular has a task, the reserve takes the task that cannot wait
 - packages/domain/src/R10b.reserve.test.ts › R10b — reserve › R10b: with no reserve available, the task that cannot wait goes to shortfall
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 7 / R11 / R10b: shuffling the order of the housekeepers in the input does not change the schedule
+- packages/domain/src/R9a.weekly-limit.test.ts › R10b — which reserve is called › R10b: the reserve with the fewest shifts this week is called; on a tie the lowest id — R1, R2, R1 Monday to Wednesday
+
+### R11 Even distribution
+
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — even distribution › R11: A and B on Monday, only A on Tuesday, one place each day → Monday goes to B and Tuesday to A (1 vs 1)
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — even distribution › R11: on a tie in shifts, the one whose last shift was longest ago works — B (Monday) before A (Tuesday) on Wednesday
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — even distribution › R11: the stableFirst housekeeper, off Monday and Tuesday, works Wednesday (0 shifts vs B’s 2) — the R7a example, only who works
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 21 / R11: staffed regular places are the most possible within 6 shifts and the spread U − L the smallest — against brute force
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 22 / R11: with every regular available every day, the most and least loaded regular differ by at most 1 shift
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 7 / R11 / R10b: shuffling the order of the housekeepers in the input does not change the schedule
+
+### R12 Weekend rotation
+
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — even distribution › R12: on Sunday A has 4 shifts and B 3, both are available and the bounds allow either → B works Sunday
 
 ## Invariants → tests
 
@@ -252,12 +283,21 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 - packages/domain/src/R10a.shortfall.test.ts › R10a — properties › invariant 1 / R10a: every task is staffed, in shortfall or carried over, exactly once, and no day exceeds its headcount
 - packages/domain/src/R5g.carry-over.test.ts › R5g — properties › invariant 1 / R5g: over two chained weeks every task is staffed, in shortfall or carried over, exactly once
 
+### Invariant 2
+
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 2 / R10: no housekeeper is assigned on a day they are unavailable
+
+### Invariant 3
+
+- packages/domain/src/R9-R10.assign-people.test.ts › R9 / R10 — properties › invariant 3 / R9: no housekeeper has more than one task per day
+
 ### Invariant 5
 
 - packages/domain/src/R1-R2-R3.derive-cleaning-tasks.test.ts › deriveCleaningTasks — properties › invariant 5 / R3: no task exists for a non-schedulable or non-existent cottage
 
 ### Invariant 7
 
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 7 / R11 / R10b: shuffling the order of the housekeepers in the input does not change the schedule
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 7 / R5d: the same tasks in any order give the same plan
 
 ### Invariant 8
@@ -304,6 +344,22 @@ see [test strategy](test-strategy.md#traceability-is-not-adequacy).
 
 - packages/domain/src/R5c-R5e.deferral.test.ts › R5c–R5e — properties › invariant 19 / R5d: when a task that cannot be deferred goes to shortfall, no task that could be deferred was staffed that day
 
+### Invariant 20
+
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 20 / R9a: nobody has more than 6 shifts; on a WEEKLY_LIMIT day every free available regular has 6, and so does every free available reserve if the task cannot wait
+
+### Invariant 21
+
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 21 / R11: staffed regular places are the most possible within 6 shifts and the spread U − L the smallest — against brute force
+
+### Invariant 22
+
+- packages/domain/src/R11-R12.even-distribution.test.ts › R11 / R12 — properties › invariant 22 / R11: with every regular available every day, the most and least loaded regular differ by at most 1 shift
+
+### Invariant 23
+
+- packages/domain/src/R9a.weekly-limit.test.ts › R9a — properties › invariant 23 / R9a: in a week starting on Monday, WEEKLY_LIMIT happens only on Sunday and only for a task that cannot wait
+
 ## Unknown references
 
 Tests that reference a rule or invariant that does not exist in docs/domain-model.md.
@@ -316,6 +372,16 @@ None.
 
 ## Tests without a rule or invariant
 
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › a lower bound above what the next edge can carry is infeasible
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › a lower bound the network can carry is feasible
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › an exact total [R, R] is met only when the network carries exactly R
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › lower > upper on an edge is infeasible
+- packages/domain/src/max-flow.test.ts › feasible flow with lower bounds › with no lower bounds a zero flow is feasible, even with the sink unreachable
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › a bipartite assignment: 3 days × 2 people, each person at most 2 shifts → 4 of 5 places
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › a single path carries its smallest capacity
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › no path from source to sink → 0
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › the textbook network (CLRS fig. 26.1) has max flow 23
+- packages/domain/src/max-flow.test.ts › max-flow (Edmonds–Karp) › undoes the first shortest path through a reverse edge
 - packages/domain/src/smoke.test.ts › domain package › loads its public entry point
 
 ## Excluded (not counted)
